@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import Courtroom from './Courtroom';
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
@@ -9,8 +10,12 @@ export default function ChatInterface({
   conversation,
   onSendMessage,
   isLoading,
+  settings,
+  onOpenSettings,
 }) {
   const [input, setInput] = useState('');
+  // Which judge's full opinion is open below the courtroom
+  const [selectedJudge, setSelectedJudge] = useState(null);
   const containerRef = useRef(null);
 
   // Text streams in constantly. We follow it down the page until the user
@@ -52,7 +57,16 @@ export default function ChatInterface({
       <div className="chat-interface">
         <div className="empty-state">
           <h2>Welcome to LLM Council</h2>
-          <p>Create a new conversation to get started</p>
+          {settings && !settings.has_api_key ? (
+            <>
+              <p>You need an OpenRouter key before the council can sit.</p>
+              <button className="send-button" onClick={onOpenSettings}>
+                Add your key
+              </button>
+            </>
+          ) : (
+            <p>Create a new conversation to get started</p>
+          )}
         </div>
       </div>
     );
@@ -86,6 +100,15 @@ export default function ChatInterface({
                     <div className="stage-error">{msg.error}</div>
                   )}
 
+                  {/* The courtroom: who is talking, and what they cost */}
+                  {msg.stage1 && (
+                    <Courtroom
+                      message={msg}
+                      selectedModel={selectedJudge}
+                      onSelectJudge={setSelectedJudge}
+                    />
+                  )}
+
                   {/* Stage 1 - the spinner only shows before the tabs exist */}
                   {msg.loading?.stage1 && !msg.stage1 && (
                     <div className="stage-loading">
@@ -94,7 +117,12 @@ export default function ChatInterface({
                     </div>
                   )}
                   {msg.stage1 && (
-                    <Stage1 responses={msg.stage1} streaming={msg.loading?.stage1} />
+                    <Stage1
+                      responses={msg.stage1}
+                      streaming={msg.loading?.stage1}
+                      activeModel={selectedJudge}
+                      onSelectModel={setSelectedJudge}
+                    />
                   )}
 
                   {/* Stage 2 */}
@@ -122,6 +150,12 @@ export default function ChatInterface({
                   )}
                   {msg.stage3 && (
                     <Stage3 finalResponse={msg.stage3} streaming={msg.loading?.stage3} />
+                  )}
+
+                  {msg.cost > 0 && (
+                    <div className="question-cost">
+                      This question cost <strong>${msg.cost.toFixed(4)}</strong>
+                    </div>
                   )}
                 </div>
               )}

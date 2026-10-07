@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
+import Settings from './components/Settings';
 import { api } from './api';
 import './App.css';
 
@@ -9,10 +10,15 @@ function App() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [currentConversation, setCurrentConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [settings, setSettings] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [stats, setStats] = useState(null);
 
-  // Load conversations on mount
+  // Load conversations, settings and lifetime spend on mount
   useEffect(() => {
     loadConversations();
+    api.getSettings().then(setSettings).catch(() => {});
+    loadStats();
   }, []);
 
   // Load conversation details when selected
@@ -28,6 +34,14 @@ function App() {
       setConversations(convs);
     } catch (error) {
       console.error('Failed to load conversations:', error);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      setStats(await api.getStats());
+    } catch (error) {
+      console.error('Failed to load stats:', error);
     }
   };
 
@@ -80,6 +94,12 @@ function App() {
         : item
     );
   };
+
+  // Attach what a model charged to its entry in the list
+  const applyCost = (list, event) =>
+    (list || []).map((item) =>
+      item.model === event.model ? { ...item, cost: event.cost } : item
+    );
 
   const markError = (list, event) =>
     (list || []).map((item) =>
@@ -146,6 +166,12 @@ function App() {
             });
             break;
 
+          case 'stage1_cost':
+            updateStreamingMessage((msg) => {
+              msg.stage1 = applyCost(msg.stage1, event);
+            });
+            break;
+
           case 'stage1_complete':
             updateStreamingMessage((msg) => {
               msg.stage1 = event.data;
@@ -186,6 +212,12 @@ function App() {
             });
             break;
 
+          case 'stage2_cost':
+            updateStreamingMessage((msg) => {
+              msg.stage2 = applyCost(msg.stage2, event);
+            });
+            break;
+
           case 'stage2_complete':
             updateStreamingMessage((msg) => {
               msg.stage2 = event.data;
@@ -218,6 +250,18 @@ function App() {
             });
             break;
 
+          case 'stage3_cost':
+            updateStreamingMessage((msg) => {
+              msg.stage3 = { ...msg.stage3, cost: event.cost };
+            });
+            break;
+
+          case 'cost_total':
+            updateStreamingMessage((msg) => {
+              msg.cost = event.cost;
+            });
+            break;
+
           case 'stage3_complete':
             updateStreamingMessage((msg) => {
               msg.stage3 = event.data;
@@ -231,8 +275,9 @@ function App() {
             break;
 
           case 'complete':
-            // Stream complete, reload conversations list
+            // Stream complete, refresh the sidebar and the lifetime total
             loadConversations();
+            loadStats();
             setIsLoading(false);
             break;
 
@@ -267,12 +312,23 @@ function App() {
         currentConversationId={currentConversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
+        stats={stats}
+        onOpenSettings={() => setShowSettings(true)}
       />
       <ChatInterface
         conversation={currentConversation}
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
+        settings={settings}
+        onOpenSettings={() => setShowSettings(true)}
       />
+      {showSettings && (
+        <Settings
+          settings={settings}
+          onClose={() => setShowSettings(false)}
+          onSaved={setSettings}
+        />
+      )}
     </div>
   );
 }

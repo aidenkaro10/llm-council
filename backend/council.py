@@ -2,7 +2,7 @@
 
 from typing import List, Dict, Any, Tuple
 from .openrouter import query_models_parallel, query_model, stream_models_parallel
-from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
+from . import settings
 
 
 async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
@@ -18,7 +18,7 @@ async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
     messages = [{"role": "user", "content": user_query}]
 
     # Query all models in parallel
-    responses = await query_models_parallel(COUNCIL_MODELS, messages)
+    responses = await query_models_parallel(settings.get_council_models(), messages)
 
     # Format results
     stage1_results = []
@@ -51,7 +51,7 @@ async def stage2_collect_rankings(
     messages = [{"role": "user", "content": ranking_prompt}]
 
     # Get rankings from all council models in parallel
-    responses = await query_models_parallel(COUNCIL_MODELS, messages)
+    responses = await query_models_parallel(settings.get_council_models(), messages)
 
     # Format results
     stage2_results = []
@@ -89,18 +89,20 @@ async def stage3_synthesize_final(
     messages = [{"role": "user", "content": chairman_prompt}]
 
     # Query the chairman model
-    response = await query_model(CHAIRMAN_MODEL, messages)
+    chairman = settings.get_chairman_model()
+    response = await query_model(chairman, messages)
 
     if response is None:
         # Fallback if chairman fails
         return {
-            "model": CHAIRMAN_MODEL,
+            "model": chairman,
             "response": "Error: Unable to generate final synthesis."
         }
 
     return {
-        "model": CHAIRMAN_MODEL,
-        "response": response.get('content', '')
+        "model": chairman,
+        "response": response.get('content', ''),
+        "cost": response.get('cost', 0.0),
     }
 
 
@@ -280,7 +282,7 @@ def calculate_aggregate_rankings(
     return aggregate
 
 
-async def generate_conversation_title(user_query: str) -> str:
+async def generate_conversation_title(user_query: str) -> Dict[str, Any]:
     """
     Generate a short title for a conversation based on the first user message.
 
@@ -288,7 +290,7 @@ async def generate_conversation_title(user_query: str) -> str:
         user_query: The first user message
 
     Returns:
-        A short title (3-5 words)
+        Dict with 'title' and 'cost'
     """
     title_prompt = f"""Generate a very short title (3-5 words maximum) that summarizes the following question.
 The title should be concise and descriptive. Do not use quotes or punctuation in the title.
@@ -304,7 +306,7 @@ Title:"""
 
     if response is None:
         # Fallback to a generic title
-        return "New Conversation"
+        return {"title": "New Conversation", "cost": 0.0}
 
     title = response.get('content', 'New Conversation').strip()
 
@@ -315,7 +317,7 @@ Title:"""
     if len(title) > 50:
         title = title[:47] + "..."
 
-    return title
+    return {"title": title, "cost": response.get('cost', 0.0)}
 
 
 async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
@@ -369,13 +371,15 @@ async def stage1_stream(user_query: str, queue) -> List[Dict[str, Any]]:
     """Stage 1, streamed: every council model answers the question at once."""
     messages = [{"role": "user", "content": user_query}]
 
-    texts = await stream_models_parallel(COUNCIL_MODELS, messages, queue, "stage1")
+    results = await stream_models_parallel(
+        settings.get_council_models(), messages, queue, "stage1"
+    )
 
     # Keep only the models that actually produced an answer
     return [
-        {"model": model, "response": text}
-        for model, text in texts.items()
-        if text
+        {"model": model, "response": r["text"], "cost": r["cost"]}
+        for model, r in results.items()
+        if r["text"]
     ]
 
 
@@ -389,23 +393,25 @@ async def stage2_stream(
 
     # Tell the browser which models are about to speak, and how the anonymous
     # labels map back to real model names, so it can render tabs immediately.
+    council_models = settings.get_council_models()
     await queue.put({
         "type": "stage2_models",
-        "models": COUNCIL_MODELS,
+        "models": council_models,
         "label_to_model": label_to_model,
     })
 
     messages = [{"role": "user", "content": ranking_prompt}]
-    texts = await stream_models_parallel(COUNCIL_MODELS, messages, queue, "stage2")
+    results = await stream_models_parallel(council_models, messages, queue, "stage2")
 
     stage2_results = [
         {
             "model": model,
-            "ranking": text,
-            "parsed_ranking": parse_ranking_from_text(text),
+            "ranking": r["text"],
+            "parsed_ranking": parse_ranking_from_text(r["text"]),
+            "cost": r["cost"],
         }
-        for model, text in texts.items()
-        if text
+        for model, r in results.items()
+        if r["text"]
     ]
 
     return stage2_results, label_to_model
@@ -420,10 +426,14 @@ async def stage3_stream(
     """Stage 3, streamed: the Chairman writes the final answer."""
     chairman_prompt = build_chairman_prompt(user_query, stage1_results, stage2_results)
 
+    chairman = settings.get_chairman_model()
     messages = [{"role": "user", "content": chairman_prompt}]
-    texts = await stream_models_parallel([CHAIRMAN_MODEL], messages, queue, "stage3")
+    results = await stream_models_parallel([chairman], messages, queue, "stage3")
+
+    result = results.get(chairman) or {"text": "", "cost": 0.0}
 
     return {
-        "model": CHAIRMAN_MODEL,
-        "response": texts.get(CHAIRMAN_MODEL) or "Error: Unable to generate final synthesis.",
+        "model": chairman,
+        "response": result["text"] or "Error: Unable to generate final synthesis.",
+        "cost": result["cost"],
     }

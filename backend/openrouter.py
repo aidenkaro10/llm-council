@@ -2,7 +2,8 @@
 
 import httpx
 from typing import List, Dict, Any, Optional
-from .config import OPENROUTER_API_KEY, OPENROUTER_API_URL
+from .config import OPENROUTER_API_URL
+from . import settings
 
 
 async def query_model(
@@ -22,7 +23,7 @@ async def query_model(
         Response dict with 'content' and optional 'reasoning_details', or None if failed
     """
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {settings.get_api_key()}",
         "Content-Type": "application/json",
     }
 
@@ -45,7 +46,9 @@ async def query_model(
 
             return {
                 'content': message.get('content'),
-                'reasoning_details': message.get('reasoning_details')
+                'reasoning_details': message.get('reasoning_details'),
+                # OpenRouter reports the exact cost of every call
+                'cost': (data.get('usage') or {}).get('cost', 0.0),
             }
 
     except Exception as e:
@@ -98,13 +101,14 @@ async def stream_model(
     """
     Stream a single model's answer via OpenRouter.
 
-    Yields (channel, text) tuples as they arrive, where channel is either
-    'content' (the real answer) or 'reasoning' (the model thinking out loud).
+    Yields (channel, value) tuples as they arrive. The channel is 'content'
+    (the real answer), 'reasoning' (the model thinking out loud), or 'usage'
+    (a dict of token counts and cost, sent once at the very end).
     """
     import json
 
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {settings.get_api_key()}",
         "Content-Type": "application/json",
     }
 
@@ -139,6 +143,11 @@ async def stream_model(
                 except json.JSONDecodeError:
                     continue
 
+                usage = chunk.get("usage")
+                if usage:
+                    # The last message carries what the whole call cost
+                    yield ("usage", usage)
+
                 choices = chunk.get("choices") or []
                 if not choices:
                     continue
@@ -167,11 +176,12 @@ async def stream_model_to_queue(
     Each queue item looks like:
         {"type": "stage1_delta", "model": ..., "channel": "content", "text": ...}
 
-    Returns the model's full answer text ('' if the model failed).
+    Returns {"text": ..., "cost": ...}. Text is '' if the model failed.
     """
     import time
 
     content_parts = []
+    cost = 0.0
     buffer = {"content": "", "reasoning": ""}
     last_flush = time.monotonic()
 
@@ -197,10 +207,19 @@ async def stream_model_to_queue(
         last_flush = time.monotonic()
 
     try:
-        async for channel, text in stream_model(model, messages, timeout):
+        async for channel, value in stream_model(model, messages, timeout):
+            if channel == "usage":
+                cost = value.get("cost", 0.0) or 0.0
+                await flush(force=True)
+                await queue.put({
+                    "type": f"{stage}_cost",
+                    "model": model,
+                    "cost": cost,
+                })
+                continue
             if channel == "content":
-                content_parts.append(text)
-            buffer[channel] += text
+                content_parts.append(value)
+            buffer[channel] += value
             await flush()
         await flush(force=True)
     except Exception as e:
@@ -212,7 +231,7 @@ async def stream_model_to_queue(
             "message": str(e),
         })
 
-    return "".join(content_parts)
+    return {"text": "".join(content_parts), "cost": cost}
 
 
 async def stream_models_parallel(
@@ -224,7 +243,7 @@ async def stream_models_parallel(
     """
     Stream several models at once, all pushing onto the same queue.
 
-    Returns a dict mapping model identifier to its full answer text.
+    Returns a dict mapping model identifier to {"text": ..., "cost": ...}.
     """
     import asyncio
 
@@ -232,6 +251,6 @@ async def stream_models_parallel(
         stream_model_to_queue(model, messages, queue, stage)
         for model in models
     ]
-    texts = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks)
 
-    return {model: text for model, text in zip(models, texts)}
+    return {model: result for model, result in zip(models, results)}

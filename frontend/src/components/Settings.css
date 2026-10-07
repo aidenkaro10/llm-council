@@ -1,0 +1,149 @@
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.settings-panel {
+  background: #ffffff;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 620px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #888;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.settings-body {
+  padding: 4px 20px 20px;
+  overflow-y: auto;
+}
+
+.settings-body section {
+  margin-top: 20px;
+}
+
+.settings-body h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.settings-note {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: #777;
+  line-height: 1.5;
+}
+
+.settings-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+.model-list {
+  margin-top: 10px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  max-height: 230px;
+  overflow-y: auto;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #f3f3f3;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.model-row:hover {
+  background: #fafafa;
+}
+
+.model-row.chosen {
+  background: #eef5fd;
+}
+
+.model-id {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.model-price {
+  color: #999;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.settings-status {
+  font-size: 12.5px;
+  flex: 1;
+}
+
+.settings-status.ok { color: #2e7d32; }
+.settings-status.error { color: #b23c3c; }
+
+.save-button {
+  background: #4a90e2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save-button:disabled {
+  background: #c8c8c8;
+  cursor: not-allowed;
+}

@@ -1,11 +1,15 @@
 # LLM Council
 
-![llmcouncil](header.jpg)
+Four AI models answer your question, read each other's answers without knowing
+who wrote what, rank them, and then a chairman writes the final verdict. You
+watch the whole thing happen in a courtroom, and you see exactly what it cost.
+
+![The council in session](docs/courtroom.gif)
 
 > Based on [karpathy/llm-council](https://github.com/karpathy/llm-council). All
 > credit for the idea and the original build goes to Andrej Karpathy. This fork
-> adds live streaming, an always-on macOS setup, and a current model lineup.
-> See [What's different here](#whats-different-here).
+> adds the courtroom, live streaming, cost tracking, an in-app settings panel,
+> and an always-on setup. See [What's different here](#whats-different-here).
 
 The idea of this repo is that instead of asking a question to your favorite LLM provider (e.g. OpenAI GPT 5.1, Google Gemini 3.0 Pro, Anthropic Claude Sonnet 4.5, xAI Grok 4, eg.c), you can group them into your "LLM Council". This repo is a simple, local web app that essentially looks like ChatGPT except it uses OpenRouter to send your query to multiple LLMs, it then asks them to review and rank each other's work, and finally a Chairman LLM produces the final response.
 
@@ -21,20 +25,34 @@ This project was 99% vibe coded as a fun Saturday hack because I wanted to explo
 
 ## What's different here
 
+- **The courtroom.** Each council member is a cartoon judge who thinks, talks,
+  and bangs a gavel. Their speech bubbles show what they are writing in real
+  time, their nameplate shows what they have cost so far, and clicking a judge
+  opens their full opinion underneath. It is drawn entirely in SVG, so there
+  are no image files and nothing to load.
 - **Streaming.** Answers appear word by word as each model writes them, instead
-  of all at once at the end. Stage 1's tabs show up immediately, all council
-  members stream in parallel, and the Chairman's answer streams in last. Models
-  that expose their reasoning show a "thinking..." state before they start writing.
-- **Current models.** The original lineup (GPT-5.1, Gemini 3 Pro preview,
-  Claude Sonnet 4.5, Grok 4) is no longer on OpenRouter. See `backend/config.py`
-  for what it uses now.
+  of all at once at the end. All council members stream in parallel. Models that
+  expose their reasoning show a thinking state before they start writing.
+- **Cost tracking.** OpenRouter reports the exact cost of every call, so you see
+  the price per judge, per question, and across every conversation you have ever
+  had. No extra requests, no estimating.
+- **Settings in the app.** Paste your OpenRouter key and pick your judges from
+  the full list of models, with prices, inside the app. No editing config files,
+  no restarting. Your key goes to the local server, lands in `.env`, and is
+  never sent back to the browser.
 - **Always-on option.** A macOS login agent that serves the API and the built
   frontend from one port, so there is no terminal to keep open.
 - **Small fixes.** Server-sent events are now parsed with a buffer (chunks that
   split mid-event used to be dropped), any localhost port is allowed by CORS,
-  and one failing model no longer takes down the rest of the council.
+  and one failing model no longer takes down the rest of the council. A judge
+  that fails is shown as recused instead of silently vanishing.
 
 ## Setup
+
+### 0. Quick version
+
+Install dependencies, run it, then paste your OpenRouter key into the Settings
+panel in the app. That is the whole setup. The longer version is below.
 
 ### 1. Install Dependencies
 
@@ -64,7 +82,10 @@ Get your API key at [openrouter.ai](https://openrouter.ai/). Make sure to purcha
 
 ### 3. Configure Models (Optional)
 
-Edit `backend/config.py` to customize the council:
+Easiest way is the **Settings** button in the app, which lets you pick judges
+from every model OpenRouter offers and shows what each one costs.
+
+To change the defaults in code instead, edit `backend/config.py`:
 
 ```python
 COUNCIL_MODELS = [

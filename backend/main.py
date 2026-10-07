@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import uuid
 import json
 import asyncio
@@ -23,7 +23,8 @@ from .council import (
     stage2_stream,
     stage3_stream,
 )
-from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
+from . import settings as app_settings
+from .config import OPENROUTER_API_URL
 
 app = FastAPI(title="LLM Council API")
 
@@ -46,6 +47,13 @@ class CreateConversationRequest(BaseModel):
 class SendMessageRequest(BaseModel):
     """Request to send a message in a conversation."""
     content: str
+
+
+class SettingsRequest(BaseModel):
+    """Request to save settings. Leave api_key out to keep the current one."""
+    api_key: Optional[str] = None
+    council_models: Optional[List[str]] = None
+    chairman_model: Optional[str] = None
 
 
 class ConversationMetadata(BaseModel):
@@ -112,8 +120,8 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
 
     # If this is the first message, generate a title
     if is_first_message:
-        title = await generate_conversation_title(request.content)
-        storage.update_conversation_title(conversation_id, title)
+        title_result = await generate_conversation_title(request.content)
+        storage.update_conversation_title(conversation_id, title_result["title"])
 
     # Run the 3-stage council process
     stage1_results, stage2_results, stage3_result, metadata = await run_full_council(
@@ -193,7 +201,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
                 title_task = asyncio.create_task(generate_conversation_title(request.content))
 
             # Stage 1: every council model answers, streaming as they write
-            yield f"data: {json.dumps({'type': 'stage1_start', 'models': COUNCIL_MODELS})}\n\n"
+            yield f"data: {json.dumps({'type': 'stage1_start', 'models': app_settings.get_council_models()})}\n\n"
             holder = {}
             async for chunk in run_stage(stage1_stream(request.content, queue), holder):
                 yield chunk
@@ -214,25 +222,36 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
             yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': {'label_to_model': label_to_model, 'aggregate_rankings': aggregate_rankings}})}\n\n"
 
             # Stage 3: the Chairman writes the final answer
-            yield f"data: {json.dumps({'type': 'stage3_start', 'model': CHAIRMAN_MODEL})}\n\n"
+            yield f"data: {json.dumps({'type': 'stage3_start', 'model': app_settings.get_chairman_model()})}\n\n"
             holder = {}
             async for chunk in run_stage(stage3_stream(request.content, stage1_results, stage2_results, queue), holder):
                 yield chunk
             stage3_result = holder["result"]
             yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
 
+            # Add up what this question cost across all three stages
+            total_cost = (
+                sum(r.get("cost", 0.0) for r in stage1_results)
+                + sum(r.get("cost", 0.0) for r in stage2_results)
+                + stage3_result.get("cost", 0.0)
+            )
+
             # Wait for title generation if it was started
             if title_task:
-                title = await title_task
-                storage.update_conversation_title(conversation_id, title)
-                yield f"data: {json.dumps({'type': 'title_complete', 'data': {'title': title}})}\n\n"
+                title_result = await title_task
+                total_cost += title_result.get("cost", 0.0)
+                storage.update_conversation_title(conversation_id, title_result["title"])
+                yield f"data: {json.dumps({'type': 'title_complete', 'data': {'title': title_result['title']}})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'cost_total', 'cost': total_cost})}\n\n"
 
             # Save complete assistant message
             storage.add_assistant_message(
                 conversation_id,
                 stage1_results,
                 stage2_results,
-                stage3_result
+                stage3_result,
+                total_cost
             )
 
             # Send completion event
@@ -250,6 +269,115 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
             "Connection": "keep-alive",
         }
     )
+
+
+@app.get("/api/stats")
+async def get_stats():
+    """Lifetime cost across every conversation."""
+    return storage.get_stats()
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """
+    Current settings for the Settings panel.
+
+    The API key itself never leaves the server, only a masked preview of it.
+    """
+    return {
+        "has_api_key": app_settings.has_api_key(),
+        "key_preview": app_settings.key_preview(),
+        "council_models": app_settings.get_council_models(),
+        "chairman_model": app_settings.get_chairman_model(),
+    }
+
+
+@app.post("/api/settings")
+async def save_settings(request: SettingsRequest):
+    """Save the API key and/or the council lineup."""
+    if request.api_key:
+        key = request.api_key.strip()
+        if not key.startswith("sk-or-"):
+            raise HTTPException(
+                status_code=400,
+                detail="That doesn't look like an OpenRouter key. They start with sk-or-",
+            )
+        app_settings.save_api_key(key)
+
+    if request.council_models is not None:
+        if not request.council_models:
+            raise HTTPException(status_code=400, detail="Pick at least one judge")
+        app_settings.save_models(
+            request.council_models,
+            request.chairman_model or app_settings.get_chairman_model(),
+        )
+
+    return await get_settings()
+
+
+# The full model list is big and rarely changes, so fetch it at most every 10 min
+_models_cache = {"fetched_at": 0.0, "models": []}
+
+
+@app.get("/api/models")
+async def list_models():
+    """Every model OpenRouter offers, for the judge picker."""
+    import time
+    import httpx
+
+    if _models_cache["models"] and time.time() - _models_cache["fetched_at"] < 600:
+        return _models_cache["models"]
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get("https://openrouter.ai/api/v1/models")
+            response.raise_for_status()
+            data = response.json().get("data", [])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach OpenRouter: {e}")
+
+    models = [
+        {
+            "id": m["id"],
+            "name": m.get("name", m["id"]),
+            # per-million-token prices are easier to read than per-token
+            "prompt_price": float((m.get("pricing") or {}).get("prompt") or 0) * 1_000_000,
+            "completion_price": float((m.get("pricing") or {}).get("completion") or 0) * 1_000_000,
+        }
+        for m in data
+        if not m["id"].endswith(":batch")
+    ]
+    models.sort(key=lambda m: m["id"])
+
+    _models_cache["models"] = models
+    _models_cache["fetched_at"] = time.time()
+    return models
+
+
+@app.get("/api/credits")
+async def get_credits():
+    """Your OpenRouter balance, shown in the Settings panel."""
+    import httpx
+
+    if not app_settings.has_api_key():
+        raise HTTPException(status_code=400, detail="No API key saved yet")
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                "https://openrouter.ai/api/v1/credits",
+                headers={"Authorization": f"Bearer {app_settings.get_api_key()}"},
+            )
+            response.raise_for_status()
+            data = response.json().get("data", {})
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach OpenRouter: {e}")
+
+    return {
+        "total_credits": data.get("total_credits", 0),
+        "total_usage": data.get("total_usage", 0),
+        "remaining": data.get("total_credits", 0) - data.get("total_usage", 0),
+    }
 
 
 # Serve the built frontend (npm run build) from the same server, so the whole

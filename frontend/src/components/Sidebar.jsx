@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import './Sidebar.css';
 
 export default function Sidebar({
@@ -6,6 +5,8 @@ export default function Sidebar({
   currentConversationId,
   onSelectConversation,
   onNewConversation,
+  stats,
+  onOpenSettings,
 }) {
   return (
     <div className="sidebar">
@@ -37,6 +38,18 @@ export default function Sidebar({
             </div>
           ))
         )}
+      </div>
+
+      <div className="sidebar-footer">
+        {stats && stats.question_count > 0 && (
+          <div className="lifetime-cost" title="Total spent across every conversation">
+            <span>{stats.question_count} questions</span>
+            <strong>${stats.total_cost.toFixed(3)}</strong>
+          </div>
+        )}
+        <button className="settings-btn" onClick={onOpenSettings}>
+          Settings
+        </button>
       </div>
     </div>
   );

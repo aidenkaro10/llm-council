@@ -131,7 +131,8 @@ def add_assistant_message(
     conversation_id: str,
     stage1: List[Dict[str, Any]],
     stage2: List[Dict[str, Any]],
-    stage3: Dict[str, Any]
+    stage3: Dict[str, Any],
+    cost: float = 0.0
 ):
     """
     Add an assistant message with all 3 stages to a conversation.
@@ -141,6 +142,7 @@ def add_assistant_message(
         stage1: List of individual model responses
         stage2: List of model rankings
         stage3: Final synthesized response
+        cost: What this whole question cost, in dollars
     """
     conversation = get_conversation(conversation_id)
     if conversation is None:
@@ -150,7 +152,8 @@ def add_assistant_message(
         "role": "assistant",
         "stage1": stage1,
         "stage2": stage2,
-        "stage3": stage3
+        "stage3": stage3,
+        "cost": cost
     })
 
     save_conversation(conversation)
@@ -170,3 +173,29 @@ def update_conversation_title(conversation_id: str, title: str):
 
     conversation["title"] = title
     save_conversation(conversation)
+
+
+def get_stats() -> Dict[str, Any]:
+    """
+    Add up what every conversation has cost so far.
+
+    Returns:
+        Dict with 'total_cost' and 'question_count'
+    """
+    ensure_data_dir()
+
+    total_cost = 0.0
+    question_count = 0
+
+    for path in Path(DATA_DIR).glob("*.json"):
+        try:
+            conversation = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        for message in conversation.get("messages", []):
+            if message.get("role") == "assistant":
+                total_cost += message.get("cost", 0.0) or 0.0
+                question_count += 1
+
+    return {"total_cost": total_cost, "question_count": question_count}

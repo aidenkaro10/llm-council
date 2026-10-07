@@ -47,6 +47,56 @@ export const api = {
   },
 
   /**
+   * Lifetime cost and question count across every conversation.
+   */
+  async getStats() {
+    const response = await fetch(`${API_BASE}/api/stats`);
+    if (!response.ok) throw new Error('Failed to load stats');
+    return response.json();
+  },
+
+  /**
+   * Current settings. Never includes the real API key, only a masked preview.
+   */
+  async getSettings() {
+    const response = await fetch(`${API_BASE}/api/settings`);
+    if (!response.ok) throw new Error('Failed to load settings');
+    return response.json();
+  },
+
+  /**
+   * Save the API key and/or the council lineup.
+   */
+  async saveSettings(body) {
+    const response = await fetch(`${API_BASE}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Failed to save settings');
+    return data;
+  },
+
+  /**
+   * Every model OpenRouter offers, for the judge picker.
+   */
+  async listModels() {
+    const response = await fetch(`${API_BASE}/api/models`);
+    if (!response.ok) throw new Error('Failed to load models');
+    return response.json();
+  },
+
+  /**
+   * OpenRouter credit balance.
+   */
+  async getCredits() {
+    const response = await fetch(`${API_BASE}/api/credits`);
+    if (!response.ok) throw new Error('Failed to load credits');
+    return response.json();
+  },
+
+  /**
    * Send a message in a conversation.
    */
   async sendMessage(conversationId, content) {
