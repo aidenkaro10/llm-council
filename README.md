@@ -1,175 +1,79 @@
 # LLM Council
 
 Four AI models answer your question, read each other's answers without knowing
-who wrote what, rank them, and then a chairman writes the final verdict. You
-watch the whole thing happen in a courtroom, and you see exactly what it cost.
+who wrote what, rank them, and a chairman writes the final verdict. You watch
+it happen in a courtroom, and you see exactly what it cost.
+
+**[Open it →](https://aidenkaro10.github.io/llm-council/)** Bring your own
+OpenRouter key. Nothing to install.
 
 ![The council in session](docs/courtroom.gif)
 
-> Based on [karpathy/llm-council](https://github.com/karpathy/llm-council). All
-> credit for the idea and the original build goes to Andrej Karpathy. This fork
-> adds the courtroom, live streaming, cost tracking, an in-app settings panel,
-> and an always-on setup. See [What's different here](#whats-different-here).
+> Based on [karpathy/llm-council](https://github.com/karpathy/llm-council). The
+> idea and the original build are Andrej Karpathy's. This version adds the
+> courtroom, live streaming, cost tracking, follow-up questions, and runs
+> entirely in the browser with no server.
 
-The idea of this repo is that instead of asking a question to your favorite LLM provider (e.g. OpenAI GPT 5.1, Google Gemini 3.0 Pro, Anthropic Claude Sonnet 4.5, xAI Grok 4, eg.c), you can group them into your "LLM Council". This repo is a simple, local web app that essentially looks like ChatGPT except it uses OpenRouter to send your query to multiple LLMs, it then asks them to review and rank each other's work, and finally a Chairman LLM produces the final response.
+## How it works
 
-In a bit more detail, here is what happens when you submit a query:
+1. **Stage 1: First opinions.** Your question goes to every judge at once. Their
+   answers stream in side by side.
+2. **Stage 2: Cross-examination.** Each judge is shown the others' answers with
+   the names stripped off, labelled only "Response A", "Response B", and so on,
+   then asked to rank them. Anonymising them is the point: a model can't play
+   favourites if it doesn't know who wrote what.
+3. **Stage 3: The verdict.** The chairman reads every answer and every ranking,
+   then writes one final answer.
 
-1. **Stage 1: First opinions**. The user query is given to all LLMs individually, and the responses are collected. The individual responses are shown in a "tab view", so that the user can inspect them all one by one.
-2. **Stage 2: Review**. Each individual LLM is given the responses of the other LLMs. Under the hood, the LLM identities are anonymized so that the LLM can't play favorites when judging their outputs. The LLM is asked to rank them in accuracy and insight.
-3. **Stage 3: Final response**. The designated Chairman of the LLM Council takes all of the model's responses and compiles them into a single final answer that is presented to the user.
+The judge who comes first in the blind peer review gets a crown.
 
-## Vibe Code Alert
+## Your API key
 
-This project was 99% vibe coded as a fun Saturday hack because I wanted to explore and evaluate a number of LLMs side by side in the process of [reading books together with LLMs](https://x.com/karpathy/status/1990577951671509438). It's nice and useful to see multiple responses side by side, and also the cross-opinions of all LLMs on each other's outputs. I'm not going to support it in any way, it's provided here as is for other people's inspiration and I don't intend to improve it. Code is ephemeral now and libraries are over, ask your LLM to change it in whatever way you like.
+Your key is kept in your browser's localStorage and sent straight to
+openrouter.ai. There is no server in this project, so there is nowhere else for
+it to go. Clearing your browser data clears your key and your conversations.
 
-## What's different here
+Get a key at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys),
+add a few dollars of credit, then paste it into Settings in the app.
 
-- **The courtroom.** Each council member is a cartoon judge who thinks, talks,
-  and bangs a gavel. Their speech bubbles show what they are writing in real
-  time, their nameplate shows what they have cost so far, and clicking a judge
-  opens their full opinion underneath. It is drawn entirely in SVG, so there
-  are no image files and nothing to load.
-- **Streaming.** Answers appear word by word as each model writes them, instead
-  of all at once at the end. All council members stream in parallel. Models that
-  expose their reasoning show a thinking state before they start writing.
-- **Cost tracking.** OpenRouter reports the exact cost of every call, so you see
-  the price per judge, per question, and across every conversation you have ever
-  had. No extra requests, no estimating.
-- **Settings in the app.** Paste your OpenRouter key and pick your judges from
-  the full list of models, with prices, inside the app. No editing config files,
-  no restarting. Your key goes to the local server, lands in `.env`, and is
-  never sent back to the browser.
-- **Always-on option.** A macOS login agent that serves the API and the built
-  frontend from one port, so there is no terminal to keep open.
-- **Small fixes.** Server-sent events are now parsed with a buffer (chunks that
-  split mid-event used to be dropped), any localhost port is allowed by CORS,
-  and one failing model no longer takes down the rest of the council. A judge
-  that fails is shown as recused instead of silently vanishing.
+## What it costs
 
-## Setup
+Every question is roughly `judges x 2 + 1` API calls, so four judges is nine
+calls. With four flagship models that lands around 9 cents a question. The app
+shows a rough estimate next to the Send button before you spend anything, then
+the real figure afterwards, taken from what OpenRouter actually charged.
 
-### 0. Quick version
+To spend less, open Settings and swap a judge or two for cheaper models. Every
+model OpenRouter offers is in the picker with its price.
 
-Install dependencies, run it, then paste your OpenRouter key into the Settings
-panel in the app. That is the whole setup. The longer version is below.
+## Running it yourself
 
-### 1. Install Dependencies
-
-The project uses [uv](https://docs.astral.sh/uv/) for project management.
-
-**Backend:**
-```bash
-uv sync
-```
-
-**Frontend:**
 ```bash
 cd frontend
 npm install
-cd ..
-```
-
-### 2. Configure API Key
-
-Copy `.env.example` to `.env` in the project root and fill in your key:
-
-```bash
-OPENROUTER_API_KEY=sk-or-v1-...
-```
-
-Get your API key at [openrouter.ai](https://openrouter.ai/). Make sure to purchase the credits you need, or sign up for automatic top up.
-
-### 3. Configure Models (Optional)
-
-Easiest way is the **Settings** button in the app, which lets you pick judges
-from every model OpenRouter offers and shows what each one costs.
-
-To change the defaults in code instead, edit `backend/config.py`:
-
-```python
-COUNCIL_MODELS = [
-    "openai/gpt-5.1",
-    "google/gemini-3-pro-preview",
-    "anthropic/claude-sonnet-4.5",
-    "x-ai/grok-4",
-]
-
-CHAIRMAN_MODEL = "google/gemini-3-pro-preview"
-```
-
-## Running the Application
-
-**Option 1: Use the start script**
-```bash
-./start.sh
-```
-
-**Option 2: Run manually**
-
-Terminal 1 (Backend):
-```bash
-uv run python -m backend.main
-```
-
-Terminal 2 (Frontend):
-```bash
-cd frontend
 npm run dev
 ```
 
-Then open http://localhost:5173 in your browser.
+Run the tests with `npm test`. They cover the ranking parser, the peer-review
+tally, the anonymising, the cost estimate, and the streaming parser, and they
+never touch the network.
 
-## Streaming
+To deploy your own copy, fork this repo and turn on GitHub Pages with "GitHub
+Actions" as the source. The workflow in `.github/workflows/deploy.yml` builds
+and publishes on every push to `main`. Change `base` in `frontend/vite.config.js`
+to match your repo name.
 
-Answers appear word by word as each model writes them, rather than all at once
-at the end. Stage 1's tabs show up immediately (one per council member), Stage 2
-fills in as the models review each other, and the Chairman's final answer streams
-in last. While a model is still thinking and hasn't written anything yet, you see
-"thinking..." plus its reasoning, if the model exposes it.
+## Tech
 
-The page follows the text down as it streams until you scroll up yourself.
+- React + Vite, no backend, no database
+- Streams from OpenRouter with `fetch` and server-sent events
+- Judges are drawn in inline SVG, so there are no image assets
+- Conversations and settings live in localStorage
 
-## Always-on setup (macOS)
+## Credit and licence
 
-The server runs automatically at login and restarts itself if it crashes, so
-there is no terminal to keep open. Open **http://localhost:8001** any time.
-
-Keep the project outside `~/Documents`, `~/Desktop` and `~/Downloads`, for
-example at `~/llm-council`. macOS blocks login-startup programs from reading
-those folders, and the agent will die with `Operation not permitted` if you
-don't. Symlink it back into your usual projects folder if you want it there.
-
-The agent lives at `~/Library/LaunchAgents/com.aidenkaro.llmcouncil.plist`, and
-points at `run-server.sh` in this repo.
-
-In this mode one server does everything: the API *and* the built frontend, both
-on port 8001. `./start.sh` is still there for development (Vite hot reload), but
-it will refuse to run while the always-on server has the port.
-
-Useful commands:
-
-```bash
-# stop it
-launchctl bootout gui/$(id -u)/com.aidenkaro.llmcouncil
-
-# start it again
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aidenkaro.llmcouncil.plist
-
-# see what it is doing
-tail -f ~/Library/Logs/llm-council.log
-
-# apply changes (config.py, or anything in frontend/src)
-cd ~/llm-council/frontend && npm run build && cd .. && launchctl kickstart -k gui/$(id -u)/com.aidenkaro.llmcouncil
-```
-
-Remove it entirely by stopping it and deleting
-`~/Library/LaunchAgents/com.aidenkaro.llmcouncil.plist`.
-
-## Tech Stack
-
-- **Backend:** FastAPI (Python 3.10+), async httpx, OpenRouter API
-- **Frontend:** React + Vite, react-markdown for rendering
-- **Storage:** JSON files in `data/conversations/`
-- **Streaming:** OpenRouter SSE per model, re-broadcast to the browser as SSE
-- **Package Management:** uv for Python, npm for JavaScript
+The three-stage council, the prompts, and the original app are from
+[karpathy/llm-council](https://github.com/karpathy/llm-council), which carries
+no licence, so neither does this. Treat it the way Karpathy framed his: there
+for other people's inspiration, not a product. If you want to build on it,
+assume you need his permission for the parts that came from him.

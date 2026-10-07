@@ -5,6 +5,7 @@ export default function Sidebar({
   currentConversationId,
   onSelectConversation,
   onNewConversation,
+  onDeleteConversation,
   stats,
   onOpenSettings,
 }) {
@@ -33,8 +34,18 @@ export default function Sidebar({
                 {conv.title || 'New Conversation'}
               </div>
               <div className="conversation-meta">
-                {conv.message_count} messages
+                {Math.floor(conv.message_count / 2) || 0} questions
               </div>
+              <button
+                className="delete-conversation"
+                title="Delete this conversation"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteConversation(conv.id);
+                }}
+              >
+                x
+              </button>
             </div>
           ))
         )}

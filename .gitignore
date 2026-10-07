@@ -1,23 +1,7 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
+node_modules/
 dist/
-wheels/
-*.egg-info
+.vite/
 
-# Virtual environments
-.venv
-
-# Keys and secrets
+# Nothing secret should ever live in this repo, but just in case
 .env
-
-# Data files
-data/
-
-# Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-# Server logs from the login agent
-logs/
+.env.local

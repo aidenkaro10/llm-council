@@ -42,7 +42,7 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings, stre
           <button
             key={i}
             className={`tab ${index === i ? 'active' : ''} ${
-              streaming && !rank.ranking && !rank.error ? 'pending' : ''
+              streaming && !rank.text && !rank.error ? 'pending' : ''
             }`}
             onClick={() => setActiveTab(i)}
           >
@@ -60,12 +60,12 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings, stre
           <div className="stage-error">This model failed: {active.error}</div>
         )}
 
-        {!active.ranking && !active.error && <Thinking text={active.reasoning} />}
+        {!active.text && !active.error && <Thinking text={active.reasoning} />}
 
-        {active.ranking && (
+        {active.text && (
           <div className="ranking-content markdown-content">
             <ReactMarkdown>
-              {deAnonymizeText(active.ranking, labelToModel) + (streaming ? ' █' : '')}
+              {deAnonymizeText(active.text, labelToModel) + (streaming ? ' █' : '')}
             </ReactMarkdown>
           </div>
         )}

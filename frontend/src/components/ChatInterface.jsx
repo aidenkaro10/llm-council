@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import Courtroom from './Courtroom';
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
+import { estimateCost, money } from '../lib/cost';
 import './ChatInterface.css';
 
 export default function ChatInterface({
@@ -11,6 +12,7 @@ export default function ChatInterface({
   onSendMessage,
   isLoading,
   settings,
+  models,
   onOpenSettings,
 }) {
   const [input, setInput] = useState('');
@@ -36,6 +38,17 @@ export default function ChatInterface({
     }
   }, [conversation]);
 
+  // Roughly what the next question will cost, from the judges you picked
+  const estimate = useMemo(() => {
+    if (!models?.length || !settings?.councilModels?.length) return null;
+    const { estimate } = estimateCost(
+      settings.councilModels,
+      settings.chairmanModel,
+      models
+    );
+    return estimate || null;
+  }, [models, settings]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
@@ -57,7 +70,7 @@ export default function ChatInterface({
       <div className="chat-interface">
         <div className="empty-state">
           <h2>Welcome to LLM Council</h2>
-          {settings && !settings.has_api_key ? (
+          {settings && !settings.apiKey ? (
             <>
               <p>You need an OpenRouter key before the council can sit.</p>
               <button className="send-button" onClick={onOpenSettings}>
@@ -164,26 +177,41 @@ export default function ChatInterface({
         )}
       </div>
 
-      {conversation.messages.length === 0 && (
-        <form className="input-form" onSubmit={handleSubmit}>
-          <textarea
-            className="message-input"
-            placeholder="Ask your question... (Shift+Enter for new line, Enter to send)"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            rows={3}
-          />
+      <form className="input-form" onSubmit={handleSubmit}>
+        <textarea
+          className="message-input"
+          placeholder={
+            conversation.messages.length === 0
+              ? 'Ask your question... (Shift+Enter for new line, Enter to send)'
+              : 'Ask a follow-up. The council sees everything above.'
+          }
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isLoading}
+          rows={3}
+        />
+        <div className="input-side">
           <button
             type="submit"
             className="send-button"
             disabled={!input.trim() || isLoading}
           >
-            Send
+            {isLoading ? 'In session' : 'Send'}
           </button>
-        </form>
-      )}
+          {estimate !== null && (
+            <span
+              className="cost-estimate"
+              title={
+                'A rough guess based on typical answer lengths and your judges. ' +
+                'The real price depends on how much each model writes.'
+              }
+            >
+              ~{money(estimate)} a question
+            </span>
+          )}
+        </div>
+      </form>
     </div>
   );
 }

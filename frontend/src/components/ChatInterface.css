@@ -174,3 +174,19 @@
 .question-cost strong {
   color: #2e7d32;
 }
+
+/* Send button plus the rough price of the next question */
+.input-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.cost-estimate {
+  font-size: 10.5px;
+  color: #999;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  cursor: help;
+}

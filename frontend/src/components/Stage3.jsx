@@ -19,14 +19,14 @@ export default function Stage3({ finalResponse, streaming }) {
           <div className="stage-error">The chairman failed: {finalResponse.error}</div>
         )}
 
-        {!finalResponse.response && !finalResponse.error && (
+        {!finalResponse.text && !finalResponse.error && (
           <Thinking text={finalResponse.reasoning} />
         )}
 
-        {finalResponse.response && (
+        {finalResponse.text && (
           <div className="final-text markdown-content">
             <ReactMarkdown>
-              {streaming ? finalResponse.response + ' █' : finalResponse.response}
+              {streaming ? finalResponse.text + ' █' : finalResponse.text}
             </ReactMarkdown>
           </div>
         )}

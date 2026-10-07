@@ -34,7 +34,7 @@ export default function Stage1({ responses, streaming, activeModel, onSelectMode
           <button
             key={i}
             className={`tab ${index === i ? 'active' : ''} ${
-              streaming && !resp.response && !resp.error ? 'pending' : ''
+              streaming && !resp.text && !resp.error ? 'pending' : ''
             }`}
             onClick={() => select(i)}
           >
@@ -50,12 +50,12 @@ export default function Stage1({ responses, streaming, activeModel, onSelectMode
           <div className="stage-error">This model failed: {active.error}</div>
         )}
 
-        {!active.response && !active.error && <Thinking text={active.reasoning} />}
+        {!active.text && !active.error && <Thinking text={active.reasoning} />}
 
-        {active.response && (
+        {active.text && (
           <div className="response-text markdown-content">
             <ReactMarkdown>
-              {streaming ? active.response + ' █' : active.response}
+              {streaming ? active.text + ' █' : active.text}
             </ReactMarkdown>
           </div>
         )}

@@ -1,29 +1,26 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api';
+import * as storage from '../lib/storage';
+import { getCredits } from '../lib/openrouter';
 import './Settings.css';
 
 /**
  * Settings panel: paste your OpenRouter key and pick who sits on the council.
  * The key is sent to the local server, written to .env, and never sent back.
  */
-export default function Settings({ settings, onClose, onSaved }) {
-  const [models, setModels] = useState([]);
+export default function Settings({ settings, models, onClose, onSaved }) {
   const [search, setSearch] = useState('');
-  const [council, setCouncil] = useState(settings?.council_models || []);
-  const [chairman, setChairman] = useState(settings?.chairman_model || '');
+  const [council, setCouncil] = useState(settings.councilModels);
+  const [chairman, setChairman] = useState(settings.chairmanModel);
   const [apiKey, setApiKey] = useState('');
   const [credits, setCredits] = useState(null);
   const [status, setStatus] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.listModels().then(setModels).catch(() =>
-      setStatus({ type: 'error', text: 'Could not load the model list from OpenRouter' })
-    );
-    if (settings?.has_api_key) {
-      api.getCredits().then(setCredits).catch(() => {});
+    if (settings.apiKey) {
+      getCredits(settings.apiKey).then(setCredits).catch(() => {});
     }
-  }, [settings?.has_api_key]);
+  }, [settings.apiKey]);
 
   const toggleJudge = (id) => {
     setCouncil((prev) =>
@@ -35,15 +32,21 @@ export default function Settings({ settings, onClose, onSaved }) {
     setSaving(true);
     setStatus(null);
     try {
-      const saved = await api.saveSettings({
-        api_key: apiKey.trim() || undefined,
-        council_models: council,
-        chairman_model: chairman || council[0],
+      const key = apiKey.trim();
+      if (key && !key.startsWith('sk-or-')) {
+        throw new Error("That doesn't look like an OpenRouter key. They start with sk-or-");
+      }
+
+      const saved = storage.saveSettings({
+        ...(key ? { apiKey: key } : {}),
+        councilModels: council,
+        chairmanModel: council.includes(chairman) ? chairman : council[0],
       });
+
       setApiKey('');
       onSaved(saved);
       setStatus({ type: 'ok', text: 'Saved. It applies to your next question.' });
-      api.getCredits().then(setCredits).catch(() => {});
+      getCredits(saved.apiKey).then(setCredits).catch(() => {});
     } catch (e) {
       setStatus({ type: 'error', text: e.message });
     } finally {
@@ -53,10 +56,10 @@ export default function Settings({ settings, onClose, onSaved }) {
 
   // Show the chosen judges first, then whatever matches the search box
   const query = search.trim().toLowerCase();
-  const visible = models
+  const visible = (models || [])
     .filter((m) => !query || m.id.toLowerCase().includes(query))
     .slice(0, 60);
-  const chosen = models.filter((m) => council.includes(m.id));
+  const chosen = (models || []).filter((m) => council.includes(m.id));
   const listed = [...chosen, ...visible.filter((m) => !council.includes(m.id))];
 
   return (
@@ -70,9 +73,9 @@ export default function Settings({ settings, onClose, onSaved }) {
         <div className="settings-body">
           <section>
             <h3>OpenRouter API key</h3>
-            {settings?.has_api_key ? (
+            {settings.apiKey ? (
               <p className="settings-note">
-                A key is saved ({settings.key_preview}). Paste a new one below to replace it.
+                A key is saved ({storage.keyPreview()}). Paste a new one below to replace it.
                 {credits && (
                   <>
                     {' '}Balance left:{' '}
@@ -86,6 +89,8 @@ export default function Settings({ settings, onClose, onSaved }) {
                 <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
                   openrouter.ai/settings/keys
                 </a>
+                . It is stored in this browser only and sent straight to
+                OpenRouter. There is no server in between.
               </p>
             )}
             <input
@@ -124,8 +129,8 @@ export default function Settings({ settings, onClose, onSaved }) {
                   />
                   <span className="model-id">{model.id}</span>
                   <span className="model-price">
-                    ${model.prompt_price.toFixed(2)} in / $
-                    {model.completion_price.toFixed(2)} out per 1M
+                    ${model.promptPrice.toFixed(2)} in / $
+                    {model.completionPrice.toFixed(2)} out per 1M
                   </span>
                 </label>
               ))}

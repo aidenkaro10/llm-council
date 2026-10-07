@@ -1,4 +1,5 @@
 import Judge from './Judge';
+import { money } from '../lib/cost';
 import './Courtroom.css';
 
 // Brand-ish colours so each judge is recognisable at a glance. Anything not
@@ -29,12 +30,6 @@ function colorFor(model) {
 
 function shortName(model) {
   return model.split('/')[1] || model;
-}
-
-function money(amount) {
-  if (!amount) return '$0.000';
-  // fractions of a cent still deserve to be visible
-  return amount < 0.001 ? `$${amount.toFixed(5)}` : `$${amount.toFixed(3)}`;
 }
 
 /** The last few words a judge has written, for their speech bubble. */
@@ -68,10 +63,13 @@ export default function Courtroom({ message, selectedModel, onSelectJudge }) {
   const stage1 = message.stage1 || [];
   const stage2 = message.stage2 || [];
 
+  // Who the blind peer review put in first place
+  const winner = message.metadata?.aggregate_rankings?.[0]?.model;
+
   const judges = stage1.map((entry) => {
     const review = stage2.find((r) => r.model === entry.model);
     const speaking = phase === 'review' ? review : entry;
-    const text = phase === 'review' ? review?.ranking : entry.response;
+    const text = phase === 'review' ? review?.text : entry.text;
     const failed = Boolean(entry.error || (phase === 'review' && review?.error));
 
     let state;
@@ -86,6 +84,7 @@ export default function Courtroom({ message, selectedModel, onSelectJudge }) {
       state,
       text,
       cost: (entry.cost || 0) + (review?.cost || 0),
+      won: entry.model === winner,
     };
   });
 
@@ -144,14 +143,28 @@ export default function Courtroom({ message, selectedModel, onSelectJudge }) {
                 )}
               </div>
 
-              <Judge
-                color={colorFor(judge.model)}
-                state={judge.state}
-                variant={i % 4}
-              />
+              <div className="judge-figure">
+                {judge.won && (
+                  <span
+                    className="judge-crown"
+                    role="img"
+                    aria-label="ranked first by the other judges"
+                    title="Ranked first in the blind peer review"
+                  >
+                    👑
+                  </span>
+                )}
+                <Judge
+                  color={colorFor(judge.model)}
+                  state={judge.state}
+                  variant={i % 4}
+                />
+              </div>
 
               <div className="judge-plate">
-                <span className="judge-name">{shortName(judge.model)}</span>
+                <span className="judge-name">
+                {shortName(judge.model)}
+              </span>
                 <span className="judge-cost">{money(judge.cost)}</span>
               </div>
             </button>
@@ -170,8 +183,8 @@ export default function Courtroom({ message, selectedModel, onSelectJudge }) {
                   <span className="dot" />
                 </div>
               )}
-              {chairmanState === 'speaking' && chairman.response && (
-                <div className="speech-bubble">{lastWords(chairman.response, 90)}</div>
+              {chairmanState === 'speaking' && chairman.text && (
+                <div className="speech-bubble">{lastWords(chairman.text, 90)}</div>
               )}
             </div>
 
