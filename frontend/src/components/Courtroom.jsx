@@ -2,40 +2,8 @@ import { Crown, Gavel, Scale } from 'lucide-react';
 import Judge from './Judge';
 import { money } from '../lib/cost';
 import { cn } from './ui';
+import { colorFor, vendorOf, shortName } from './brand';
 import './Courtroom.css';
-
-// Each maker's mech is painted in a loud version of their colour. xAI's brand
-// is black, which would vanish in a dark room, so it gets chrome instead.
-const BRAND_COLORS = {
-  openai: '#12d18e',
-  google: '#4b8bff',
-  anthropic: '#ff6b35',
-  'x-ai': '#dfe3e8',
-  'meta-llama': '#1f7bff',
-  mistralai: '#ff8a00',
-  deepseek: '#5b7cff',
-  qwen: '#8b5cff',
-  cohere: '#39c48a',
-  perplexity: '#22b8c8',
-};
-
-const FALLBACK_COLORS = ['#ff4fa3', '#ffd23f', '#00d1c1', '#b15cff', '#ff5d5d'];
-
-function vendorOf(model) {
-  return model.split('/')[0];
-}
-
-function colorFor(model) {
-  const vendor = vendorOf(model);
-  if (BRAND_COLORS[vendor]) return BRAND_COLORS[vendor];
-  let hash = 0;
-  for (const ch of model) hash = (hash * 31 + ch.charCodeAt(0)) % 9973;
-  return FALLBACK_COLORS[hash % FALLBACK_COLORS.length];
-}
-
-function shortName(model) {
-  return model.split('/')[1] || model;
-}
 
 /** The last few words a mech has said, for its speech bubble. */
 function lastWords(text, limit = 60) {

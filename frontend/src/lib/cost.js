@@ -9,8 +9,8 @@
 // Typical sizes, in tokens
 const QUESTION_TOKENS = 60;
 const ANSWER_TOKENS = 700;    // what one judge writes in stage 1
-const REVIEW_TOKENS = 600;    // what one judge writes in stage 2
-const VERDICT_TOKENS = 800;   // what the chairman writes
+const REVIEW_TOKENS = 250;    // one judge's brief review in stage 2
+const VERDICT_TOKENS = 400;   // the chairman's verdict, kept short
 
 export function estimateCost(councilModels, chairmanModel, models) {
   const priceOf = (id) => models.find((m) => m.id === id);

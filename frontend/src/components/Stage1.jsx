@@ -23,7 +23,7 @@ export default function Stage1({ responses, streaming, activeModel, onSelectMode
   };
 
   return (
-    <Panel step="1" title="First opinions" hint="Every judge answers on their own">
+    <Panel step="1" title="First opinions">
       <ModelTabs
         items={responses}
         activeIndex={index}

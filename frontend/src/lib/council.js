@@ -42,7 +42,7 @@ Here are the responses from different models (anonymized):
 ${body}
 
 Your task:
-1. First, evaluate each response individually. For each response, explain what it does well and what it does poorly.
+1. For each response, write one or two sentences on what it gets right and what it gets wrong. Be blunt and brief.
 2. Then, at the very end of your response, provide a final ranking.
 
 IMPORTANT: Your final ranking MUST be formatted EXACTLY as follows:
@@ -77,22 +77,22 @@ export function buildChairmanPrompt(question, answers, reviews) {
     .map((r) => `Model: ${r.model}\nRanking: ${r.text}`)
     .join('\n\n');
 
-  return `You are the Chairman of an LLM Council. Multiple AI models have provided responses to a user's question, and then ranked each other's responses.
+  return `You are the chairman of a council of AI models. Several models answered the user's question, then ranked each other's answers without knowing who wrote what.
 
-Original Question: ${question}
+Question: ${question}
 
-STAGE 1 - Individual Responses:
+ANSWERS:
 ${answersText}
 
-STAGE 2 - Peer Rankings:
+REVIEWS:
 ${reviewsText}
 
-Your task as Chairman is to synthesize all of this information into a single, comprehensive, accurate answer to the user's original question. Consider:
-- The individual responses and their insights
-- The peer rankings and what they reveal about response quality
-- Any patterns of agreement or disagreement
+Write the final answer for the user.
 
-Provide a clear, well-reasoned final answer that represents the council's collective wisdom:`;
+- Start with the answer itself in the first sentence. No preamble, no restating the question.
+- Keep what the council got right, fix what it got wrong, and use the reviews to settle disagreements.
+- Be as short as the question allows. A simple question gets a sentence or two. A complex one gets a few short paragraphs or a short list, never an essay.
+- Do not mention the council, the models, the reviews, or this process. The user only wants the answer.`;
 }
 
 /** Pull the "FINAL RANKING:" list out of a judge's review. */

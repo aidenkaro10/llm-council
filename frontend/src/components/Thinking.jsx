@@ -17,7 +17,7 @@ export default function Thinking({ text }) {
             />
           ))}
         </span>
-        <span>thinking</span>
+        <span>{text === undefined ? 'Reaching a verdict' : 'thinking'}</span>
       </div>
       {tail && (
         <p className="mt-2 max-h-24 overflow-hidden border-l-2 border-[var(--border)] pl-3 text-[12px] italic opacity-70">

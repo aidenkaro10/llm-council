@@ -16,11 +16,22 @@ frontend/
     cost.js         pre-flight price estimate and money formatting
   src/components/
     Courtroom.jsx   the arena scene; Judge.jsx draws one mech in SVG
+    CouncilStrip.jsx the one-line summary shown once the verdict is in
+    brand.js        maker colours, shared by the arena and the strip
     ui.jsx          shared Button, Card, Panel, ModelTabs (Tailwind)
     Stage1/2/3.jsx  the full text under the courtroom
     Settings.jsx    API key and judge picker
   test/             node:test suite, no network
 ```
+
+## The product rule
+
+The user came for the verdict. Show the answer, hide the process. While the
+council works the arena is the loading screen; once the verdict lands, the
+deliberation folds into one line (`CouncilStrip`) with "How they got there".
+Don't add captions, hints or explainer text to the main view. The chairman
+prompt asks for a short, direct answer that never mentions the council; keep it
+that way.
 
 ## Things that will bite you
 

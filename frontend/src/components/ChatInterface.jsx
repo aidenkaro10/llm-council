@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ArrowUp, KeyRound, Sparkles, Menu, Plus, Scale } from 'lucide-react';
 import Courtroom from './Courtroom';
+import CouncilStrip from './CouncilStrip';
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
@@ -28,6 +29,15 @@ export default function ChatInterface({
   const [input, setInput] = useState('');
   // Which judge's full opinion is open below the courtroom
   const [selectedJudge, setSelectedJudge] = useState(null);
+  // Which answers have "How they got there" expanded, by message position
+  const [openDetails, setOpenDetails] = useState({});
+
+  useEffect(() => {
+    setOpenDetails({});
+  }, [conversation?.id]);
+
+  const toggleDetails = (index) =>
+    setOpenDetails((prev) => ({ ...prev, [index]: !prev[index] }));
   const containerRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -100,9 +110,8 @@ export default function ChatInterface({
             <Sparkles className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Convene the council</h1>
-          <p className="mt-2 text-[14px] leading-relaxed text-[var(--muted-foreground)]">
-            Four models answer, review each other blind, and a chairman writes the
-            verdict. You watch it happen and see what it costs.
+          <p className="mt-2 text-[14px] text-[var(--muted-foreground)]">
+            Ask once. Four models argue it out. You get one answer.
           </p>
           <div className="mt-6 flex justify-center gap-2">
             {settings && !settings.apiKey ? (
@@ -141,9 +150,6 @@ export default function ChatInterface({
           {empty ? (
             <div className="pt-[12vh] text-center">
               <h2 className="text-xl font-semibold tracking-tight">What should the council decide?</h2>
-              <p className="mt-1.5 text-[14px] text-[var(--muted-foreground)]">
-                Try one of these, or ask your own.
-              </p>
               <div className="mx-auto mt-6 grid max-w-xl gap-2 sm:grid-cols-2">
                 {STARTERS.map((s) => (
                   <button
@@ -167,50 +173,14 @@ export default function ChatInterface({
                     </div>
                   </div>
                 ) : (
-                  <div key={index} className="space-y-4">
-                    {msg.error && (
-                      <div className="rounded-[var(--radius)] border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-[13px] text-[var(--danger)]">
-                        {msg.error}
-                      </div>
-                    )}
-
-                    {msg.stage1 && (
-                      <Courtroom
-                        message={msg}
-                        selectedModel={selectedJudge}
-                        onSelectJudge={setSelectedJudge}
-                      />
-                    )}
-
-                    {msg.stage3 && (
-                      <Stage3 finalResponse={msg.stage3} streaming={msg.loading?.stage3} />
-                    )}
-
-                    {msg.stage1 && (
-                      <Stage1
-                        responses={msg.stage1}
-                        streaming={msg.loading?.stage1}
-                        activeModel={selectedJudge}
-                        onSelectModel={setSelectedJudge}
-                      />
-                    )}
-
-                    {msg.stage2 && (
-                      <Stage2
-                        rankings={msg.stage2}
-                        labelToModel={msg.metadata?.label_to_model}
-                        aggregateRankings={msg.metadata?.aggregate_rankings}
-                        streaming={msg.loading?.stage2}
-                      />
-                    )}
-
-                    {msg.cost > 0 && (
-                      <div className="text-right font-mono text-[11.5px] text-[var(--muted-foreground)]">
-                        This question cost{' '}
-                        <span className="text-[var(--success)]">${msg.cost.toFixed(4)}</span>
-                      </div>
-                    )}
-                  </div>
+                  <AssistantMessage
+                    key={index}
+                    msg={msg}
+                    detailsOpen={Boolean(openDetails[index])}
+                    onToggleDetails={() => toggleDetails(index)}
+                    selectedJudge={selectedJudge}
+                    onSelectJudge={setSelectedJudge}
+                  />
                 )
               )}
             </div>
@@ -239,7 +209,7 @@ export default function ChatInterface({
                   ? 'Add your OpenRouter key in Settings first'
                   : empty
                   ? 'Ask the council anything'
-                  : 'Ask a follow-up. The council sees everything above.'
+                  : 'Ask a follow-up'
               }
               className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[14.5px] outline-none placeholder:text-[var(--muted-foreground)] disabled:opacity-60"
             />
@@ -259,9 +229,6 @@ export default function ChatInterface({
               {isLoading
                 ? 'The council is in session...'
                 : `${settings?.councilModels?.length || 0} judges`}
-              <span className="hidden sm:inline">
-                {isLoading ? '' : ' · Shift+Enter for a new line'}
-              </span>
             </span>
             {estimate !== null && (
               <span
@@ -275,5 +242,65 @@ export default function ChatInterface({
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * One answer from the council.
+ *
+ * While the council is working, the arena is the show. Once the verdict is in,
+ * the verdict is all you see, and the deliberation folds into one line you can
+ * open if you want to know how they got there.
+ */
+function AssistantMessage({
+  msg,
+  detailsOpen,
+  onToggleDetails,
+  selectedJudge,
+  onSelectJudge,
+}) {
+  const loading = msg.loading || {};
+  const working = loading.stage1 || loading.stage2 || loading.stage3;
+  const finished = Boolean(msg.stage3) && !working;
+
+  const details = (
+    <div className="space-y-4">
+      <Courtroom message={msg} selectedModel={selectedJudge} onSelectJudge={onSelectJudge} />
+      <Stage1
+        responses={msg.stage1}
+        streaming={loading.stage1}
+        activeModel={selectedJudge}
+        onSelectModel={onSelectJudge}
+      />
+      <Stage2
+        rankings={msg.stage2}
+        labelToModel={msg.metadata?.label_to_model}
+        aggregateRankings={msg.metadata?.aggregate_rankings}
+        streaming={loading.stage2}
+      />
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      {msg.error && (
+        <div className="rounded-[var(--radius)] border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-[13px] text-[var(--danger)]">
+          {msg.error}
+        </div>
+      )}
+
+      {msg.stage3 && <Stage3 finalResponse={msg.stage3} streaming={loading.stage3} />}
+
+      {finished ? (
+        <>
+          <CouncilStrip message={msg} open={detailsOpen} onToggle={onToggleDetails} />
+          {detailsOpen && <div className="pt-2">{details}</div>}
+        </>
+      ) : (
+        msg.stage1 && (
+          <Courtroom message={msg} selectedModel={selectedJudge} onSelectJudge={onSelectJudge} />
+        )
+      )}
+    </div>
   );
 }

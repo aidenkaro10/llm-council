@@ -31,17 +31,10 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings, stre
   const best = aggregateRankings?.[0]?.average_rank;
 
   return (
-    <Panel
-      step="2"
-      title="Cross-examination"
-      hint="Each judge ranked the others without knowing who wrote what"
-    >
+    <Panel step="2" title="Blind review">
       {/* the scoreboard comes first, since it's the result people care about */}
       {aggregateRankings?.length > 0 && (
         <div className="mb-4">
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
-            Combined ranking
-          </div>
           <ol className="space-y-1.5">
             {aggregateRankings.map((row, i) => {
               // bar length: best average fills the bar, worst is shortest
@@ -81,16 +74,9 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings, stre
               );
             })}
           </ol>
-          <p className="mt-2 text-[11.5px] text-[var(--muted-foreground)]">
-            Average position across {aggregateRankings[0].rankings_count} blind
-            reviews. Lower is better.
-          </p>
         </div>
       )}
 
-      <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
-        Each judge's review
-      </div>
       <ModelTabs
         items={rankings}
         activeIndex={index}
@@ -113,23 +99,6 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings, stre
               </ReactMarkdown>
             </div>
 
-            {active.parsed_ranking?.length > 0 && (
-              <div className="mt-4 rounded-[var(--radius)] bg-[var(--muted)] px-3 py-2.5">
-                <div className="mb-1.5 text-[11px] font-medium text-[var(--muted-foreground)]">
-                  What we read as their ranking
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {active.parsed_ranking.map((label, i) => (
-                    <span
-                      key={label}
-                      className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 font-mono text-[11.5px]"
-                    >
-                      {i + 1}. {labelToModel?.[label] ? shortName(labelToModel[label]) : label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>

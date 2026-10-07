@@ -8,7 +8,7 @@
  */
 
 /** Stylised maker's marks. Simple geometry, not copies of official artwork. */
-function Mark({ vendor, color }) {
+export function Mark({ vendor, color }) {
   const stroke = { stroke: color, strokeWidth: 3, fill: 'none', strokeLinecap: 'round' };
 
   switch (vendor) {
