@@ -18,9 +18,14 @@ verdict.
    play favourites.
 3. A chairman writes one answer from all of it.
 
-You see the verdict. Everything else, every judge's answer and every review,
-is one click away under **How they got there**. The judge ranked best gets a
-crown.
+While they deliberate, you watch it happen: each model is a 3D mech with its
+maker's mark for a face, standing in a dark chamber. They think, argue in
+speech bubbles, turn to face each other for the blind review, and the camera
+pushes in on the chairman as the verdict is written. The judge ranked best gets
+a crown.
+
+Then you see the verdict. Everything else, every judge's answer and every
+review, is one click away under **How they got there**.
 
 ## Your key and your money
 
@@ -40,6 +45,13 @@ npm run dev
 `npm test` runs the tests, offline and free. Pushing to `main` tests and deploys
 to GitHub Pages. If you fork it, change `base` in `frontend/vite.config.js` to
 your repo name.
+
+## Tech
+
+React and Vite, with the chamber in three.js through React Three Fiber. The
+mechs are built from code, not model files, and the 3D loads separately so the
+app is usable before it arrives. It respects reduced-motion settings and
+switches to a tighter, lighter scene on phones.
 
 ## Notes
 

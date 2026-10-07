@@ -1,20 +1,40 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { ArrowUp, KeyRound, Sparkles, Menu, Plus, Scale } from 'lucide-react';
-import Courtroom from './Courtroom';
+import { ArrowUp, KeyRound } from 'lucide-react';
 import CouncilStrip from './CouncilStrip';
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
-import { Button, cn } from './ui';
+import { cn } from './ui';
 import { estimateCost, money } from '../lib/cost';
 
 const STARTERS = [
-  'Is a hot dog a sandwich? Settle this.',
-  'What is the single best habit for learning faster?',
-  'Explain how a transformer works to a 12 year old.',
-  'Should a small business start with Google Ads or SEO?',
+  'Is a hot dog a sandwich?',
+  'Best habit for learning faster?',
+  'Google Ads or SEO for a new local business?',
 ];
+
+const STAGE_LABELS = {
+  opinions: 'Hearing the question',
+  review: 'Judges reviewing each other, blind',
+  verdict: 'The chairman is deciding',
+};
+
+/** Big serif lines that arrive one word at a time. */
+function Reveal({ lines }) {
+  let index = 0;
+  return lines.map((line, l) => (
+    <span key={l} className="block">
+      {line.split(' ').map((word, w) => {
+        const delay = 0.15 + index++ * 0.09;
+        return (
+          <span key={w} className="reveal-word" style={{ animationDelay: `${delay}s` }}>
+            {word}&nbsp;
+          </span>
+        );
+      })}
+    </span>
+  ));
+}
 
 export default function ChatInterface({
   conversation,
@@ -23,45 +43,36 @@ export default function ChatInterface({
   settings,
   models,
   onOpenSettings,
-  onNewConversation,
-  onOpenSidebar,
 }) {
   const [input, setInput] = useState('');
-  // Which judge's full opinion is open below the courtroom
   const [selectedJudge, setSelectedJudge] = useState(null);
-  // Which answers have "How they got there" expanded, by message position
   const [openDetails, setOpenDetails] = useState({});
+  const containerRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     setOpenDetails({});
   }, [conversation?.id]);
 
-  const toggleDetails = (index) =>
-    setOpenDetails((prev) => ({ ...prev, [index]: !prev[index] }));
-  const containerRef = useRef(null);
-  const textareaRef = useRef(null);
-
-  // Follow the text down as it streams, until the user scrolls up themselves
+  // Follow new text down until the user scrolls up themselves
   const stickToBottom = useRef(true);
   const handleScroll = () => {
     const el = containerRef.current;
     if (!el) return;
-    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
   useEffect(() => {
     const el = containerRef.current;
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [conversation]);
 
-  // Grow the box with what's typed, up to a limit
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
   }, [input]);
 
-  // Roughly what the next question will cost, from the judges you picked
   const estimate = useMemo(() => {
     if (!models?.length || !settings?.councilModels?.length) return null;
     return estimateCost(settings.councilModels, settings.chairmanModel, models).estimate || null;
@@ -69,106 +80,66 @@ export default function ChatInterface({
 
   const submit = (text) => {
     const question = (text ?? input).trim();
-    if (!question || isLoading) return;
+    if (!question || isLoading || !settings?.apiKey) return;
     stickToBottom.current = true;
     onSendMessage(question);
     setInput('');
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      submit();
-    }
-  };
-
-
-  // Phones only: menu, title, new conversation
-  const mobileBar = (
-    <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2 md:hidden">
-      <Button variant="ghost" size="icon" onClick={onOpenSidebar} title="Conversations">
-        <Menu className="h-4 w-4" />
-      </Button>
-      <div className="flex flex-1 items-center gap-1.5 truncate text-[14px] font-semibold">
-        <Scale className="h-4 w-4 shrink-0" />
-        <span className="truncate">{conversation?.title && conversation.title !== 'New Conversation' ? conversation.title : 'LLM Council'}</span>
-      </div>
-      <Button variant="ghost" size="icon" onClick={onNewConversation} title="New conversation">
-        <Plus className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-
-  // --- nothing selected yet ---------------------------------------------------
-  if (!conversation) {
-    return (
-      <main className="flex min-w-0 flex-1 flex-col">
-        {mobileBar}
-        <div className="flex flex-1 items-center justify-center p-8">
-        <div className="max-w-md text-center">
-          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--muted)]">
-            <Sparkles className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Convene the council</h1>
-          <p className="mt-2 text-[14px] text-[var(--muted-foreground)]">
-            Ask once. Four models argue it out. You get one answer.
-          </p>
-          <div className="mt-6 flex justify-center gap-2">
-            {settings && !settings.apiKey ? (
-              <Button variant="primary" onClick={onOpenSettings}>
-                <KeyRound className="h-4 w-4" />
-                Add your OpenRouter key
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={onNewConversation}>
-                Start a conversation
-              </Button>
-            )}
-          </div>
-          {settings && !settings.apiKey && (
-            <p className="mt-3 text-[12px] text-[var(--muted-foreground)]">
-              Your key stays in this browser and goes straight to OpenRouter.
-            </p>
-          )}
-        </div>
-        </div>
-      </main>
-    );
-  }
-
-  const empty = conversation.messages.length === 0;
+  const messages = conversation?.messages || [];
+  const empty = messages.length === 0;
+  const hasKey = Boolean(settings?.apiKey);
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col">
-      {mobileBar}
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto"
-      >
-        <div className="mx-auto max-w-3xl px-3 py-5 sm:px-6 sm:py-8">
+    <main
+      className={cn(
+        'glass fixed z-20 flex flex-col overflow-hidden',
+        // phones: a sheet across the bottom, the chamber shows above it
+        'inset-x-2 bottom-2 h-[58dvh] rounded-3xl',
+        // wider screens: a column on the left, the chamber fills the rest
+        'md:inset-x-auto md:top-[76px] md:bottom-4 md:left-4 md:h-auto md:w-[440px]'
+      )}
+    >
+      <div ref={containerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto">
+        <div className="px-5 py-6 sm:px-6">
           {empty ? (
-            <div className="pt-[12vh] text-center">
-              <h2 className="text-xl font-semibold tracking-tight">What should the council decide?</h2>
-              <div className="mx-auto mt-6 grid max-w-xl gap-2 sm:grid-cols-2">
-                {STARTERS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => submit(s)}
-                    disabled={!settings?.apiKey}
-                    className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-left text-[13px] leading-snug transition hover:bg-[var(--muted)] disabled:opacity-50 cursor-pointer"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+            <div className="flex min-h-[36dvh] flex-col justify-end md:min-h-[52dvh]">
+              <h1 className="font-[family-name:var(--font-display)] text-[clamp(38px,5.2vw,58px)] leading-[0.98] tracking-[-0.01em] text-white">
+                <Reveal lines={['Ask once.', 'The council decides.']} />
+              </h1>
+              <p className="fade-up mt-4 max-w-[30ch] text-[13.5px] leading-relaxed text-white/55" style={{ animationDelay: '0.7s' }}>
+                Four AI models answer, judge each other blind, and hand you one verdict.
+              </p>
+
+              {hasKey ? (
+                <div className="fade-up mt-6 flex flex-wrap gap-2" style={{ animationDelay: '0.9s' }}>
+                  {STARTERS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => submit(s)}
+                      className="glass-soft rounded-full px-3.5 py-1.5 text-[12.5px] text-white/80 transition hover:bg-white/10 hover:text-white cursor-pointer"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  onClick={onOpenSettings}
+                  className="fade-up mt-6 inline-flex w-fit items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-medium text-black transition hover:bg-white/90 cursor-pointer"
+                  style={{ animationDelay: '0.9s' }}
+                >
+                  <KeyRound className="h-4 w-4" />
+                  Add your OpenRouter key
+                </button>
+              )}
             </div>
           ) : (
-            <div className="space-y-8">
-              {conversation.messages.map((msg, index) =>
+            <div className="space-y-7">
+              {messages.map((msg, index) =>
                 msg.role === 'user' ? (
                   <div key={index} className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--foreground)] px-4 py-2.5 text-[14.5px] text-[var(--background)]">
+                    <div className="max-w-[88%] rounded-2xl rounded-br-md bg-white px-4 py-2.5 text-[14px] text-black">
                       {msg.content}
                     </div>
                   </div>
@@ -177,7 +148,9 @@ export default function ChatInterface({
                     key={index}
                     msg={msg}
                     detailsOpen={Boolean(openDetails[index])}
-                    onToggleDetails={() => toggleDetails(index)}
+                    onToggleDetails={() =>
+                      setOpenDetails((prev) => ({ ...prev, [index]: !prev[index] }))
+                    }
                     selectedJudge={selectedJudge}
                     onSelectJudge={setSelectedJudge}
                   />
@@ -189,56 +162,39 @@ export default function ChatInterface({
       </div>
 
       {/* --- the composer --- */}
-      <div className="border-t border-[var(--border)] bg-[var(--background)]/80 backdrop-blur">
-        <div className="mx-auto max-w-3xl px-3 py-3 sm:px-6 sm:py-4">
-          <div
-            className={cn(
-              'flex items-end gap-2 rounded-2xl border border-[var(--input)] bg-[var(--card)] p-2 shadow-sm transition',
-              'focus-within:ring-2 focus-within:ring-[var(--ring)]'
-            )}
-          >
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading || !settings?.apiKey}
-              placeholder={
-                !settings?.apiKey
-                  ? 'Add your OpenRouter key in Settings first'
-                  : empty
-                  ? 'Ask the council anything'
-                  : 'Ask a follow-up'
+      <div className="border-t border-white/[0.07] p-3">
+        <div className="glass-soft flex items-end gap-2 rounded-2xl p-1.5 transition focus-within:border-white/25">
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
               }
-              className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[14.5px] outline-none placeholder:text-[var(--muted-foreground)] disabled:opacity-60"
-            />
-            <Button
-              variant="primary"
-              size="icon"
-              className="h-9 w-9 shrink-0 rounded-xl"
-              onClick={() => submit()}
-              disabled={!input.trim() || isLoading}
-              title="Send (Enter)"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="mt-2 flex items-center justify-between px-1 text-[11.5px] text-[var(--muted-foreground)]">
-            <span>
-              {isLoading
-                ? 'The council is in session...'
-                : `${settings?.councilModels?.length || 0} judges`}
+            }}
+            disabled={isLoading || !hasKey}
+            placeholder={!hasKey ? 'Add your key in Settings first' : empty ? 'Ask the council' : 'Ask a follow-up'}
+            className="max-h-[160px] min-h-[40px] flex-1 resize-none bg-transparent px-3 py-2.5 text-[14.5px] text-white outline-none placeholder:text-white/35 disabled:opacity-60"
+          />
+          <button
+            onClick={() => submit()}
+            disabled={!input.trim() || isLoading || !hasKey}
+            title="Send (Enter)"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-black transition hover:bg-white/90 disabled:bg-white/15 disabled:text-white/40 cursor-pointer disabled:cursor-default"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-2 flex justify-between px-2 font-mono text-[10.5px] text-white/35">
+          <span>{isLoading ? 'In session' : `${settings?.councilModels?.length || 0} judges`}</span>
+          {estimate !== null && (
+            <span title="A rough guess from typical answer lengths and your judges' prices">
+              ~{money(estimate)} a question
             </span>
-            {estimate !== null && (
-              <span
-                className="cursor-help font-mono"
-                title="A rough guess from typical answer lengths and your judges' prices. The real cost depends on how much each model writes."
-              >
-                ~{money(estimate)} per question
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </main>
@@ -246,60 +202,64 @@ export default function ChatInterface({
 }
 
 /**
- * One answer from the council.
- *
- * While the council is working, the arena is the show. Once the verdict is in,
- * the verdict is all you see, and the deliberation folds into one line you can
- * open if you want to know how they got there.
+ * One answer. While the council works, a short status line (the show is the
+ * chamber behind). Once the verdict is in, the verdict, plus one line that
+ * opens the full deliberation.
  */
-function AssistantMessage({
-  msg,
-  detailsOpen,
-  onToggleDetails,
-  selectedJudge,
-  onSelectJudge,
-}) {
+function AssistantMessage({ msg, detailsOpen, onToggleDetails, selectedJudge, onSelectJudge }) {
   const loading = msg.loading || {};
   const working = loading.stage1 || loading.stage2 || loading.stage3;
   const finished = Boolean(msg.stage3) && !working;
-
-  const details = (
-    <div className="space-y-4">
-      <Courtroom message={msg} selectedModel={selectedJudge} onSelectJudge={onSelectJudge} />
-      <Stage1
-        responses={msg.stage1}
-        streaming={loading.stage1}
-        activeModel={selectedJudge}
-        onSelectModel={onSelectJudge}
-      />
-      <Stage2
-        rankings={msg.stage2}
-        labelToModel={msg.metadata?.label_to_model}
-        aggregateRankings={msg.metadata?.aggregate_rankings}
-        streaming={loading.stage2}
-      />
-    </div>
-  );
+  const phase = loading.stage1 ? 'opinions' : loading.stage2 ? 'review' : loading.stage3 ? 'verdict' : null;
+  const step = { opinions: 1, review: 2, verdict: 3 }[phase] || 0;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {msg.error && (
-        <div className="rounded-[var(--radius)] border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-[13px] text-[var(--danger)]">
+        <div className="rounded-2xl bg-[var(--danger)]/10 px-4 py-3 text-[13px] text-[var(--danger)]">
           {msg.error}
+        </div>
+      )}
+
+      {phase && phase !== 'verdict' && (
+        <div className="fade-up flex items-center gap-3 py-1">
+          <div className="flex gap-1">
+            {[1, 2, 3].map((s) => (
+              <span
+                key={s}
+                className={cn(
+                  'h-1 w-6 rounded-full transition-colors duration-500',
+                  s < step ? 'bg-white/80' : s === step ? 'animate-pulse bg-white/60' : 'bg-white/15'
+                )}
+              />
+            ))}
+          </div>
+          <span className="text-[12.5px] text-white/60">{STAGE_LABELS[phase]}</span>
         </div>
       )}
 
       {msg.stage3 && <Stage3 finalResponse={msg.stage3} streaming={loading.stage3} />}
 
-      {finished ? (
+      {finished && (
         <>
           <CouncilStrip message={msg} open={detailsOpen} onToggle={onToggleDetails} />
-          {detailsOpen && <div className="pt-2">{details}</div>}
+          {detailsOpen && (
+            <div className="space-y-3 pt-1">
+              <Stage1
+                responses={msg.stage1}
+                streaming={false}
+                activeModel={selectedJudge}
+                onSelectModel={onSelectJudge}
+              />
+              <Stage2
+                rankings={msg.stage2}
+                labelToModel={msg.metadata?.label_to_model}
+                aggregateRankings={msg.metadata?.aggregate_rankings}
+                streaming={false}
+              />
+            </div>
+          )}
         </>
-      ) : (
-        msg.stage1 && (
-          <Courtroom message={msg} selectedModel={selectedJudge} onSelectJudge={onSelectJudge} />
-        )
       )}
     </div>
   );

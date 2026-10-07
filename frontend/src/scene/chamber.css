@@ -1,0 +1,103 @@
+/* The 3D stage sits behind everything else on the page. */
+.chamber-canvas {
+  position: fixed !important;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Speech bubbles and nameplates float over the 3D scene as plain HTML. */
+.bubble3d {
+  max-width: 180px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: oklch(0.98 0 0 / 92%);
+  color: oklch(0.2 0.01 270);
+  font: 500 12px/1.35 var(--font-sans);
+  white-space: normal;
+  width: max-content;
+  box-shadow: 0 0 0 1.5px var(--c), 0 0 24px color-mix(in srgb, var(--c) 45%, transparent);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  pointer-events: none;
+  animation: bubble3d-in 0.25s ease-out;
+}
+
+.bubble3d .dots {
+  display: inline-flex;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.bubble3d .dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  animation: dot3d 1s ease-in-out infinite;
+}
+.bubble3d .dots i:nth-child(2) { animation-delay: 0.15s; }
+.bubble3d .dots i:nth-child(3) { animation-delay: 0.3s; }
+
+.bubble3d-off {
+  --c: oklch(0.6 0.16 25);
+  color: oklch(0.55 0.17 25);
+  font-style: italic;
+}
+
+.plate3d {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: oklch(0.12 0.01 270 / 70%);
+  border: 1px solid oklch(1 0 0 / 12%);
+  backdrop-filter: blur(8px);
+  color: white;
+  font: 600 11px/1 var(--font-mono);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.plate3d span::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+  vertical-align: middle;
+}
+
+.plate3d em {
+  font-style: normal;
+  font-weight: 500;
+  color: oklch(0.82 0.13 160);
+}
+
+@keyframes bubble3d-in {
+  from { transform: translateY(6px) scale(0.95); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes dot3d {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-3px); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble3d, .bubble3d .dots i { animation: none !important; }
+}
+
+/* the scene eases in once its code has loaded, instead of popping in */
+.chamber-canvas {
+  animation: chamber-in 1.4s ease-out both;
+}
+
+@keyframes chamber-in {
+  from { opacity: 0; }
+}

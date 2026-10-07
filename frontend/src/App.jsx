@@ -1,68 +1,157 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import Settings from './components/Settings';
+import TopBar from './components/TopBar';
+import IntroLoader from './components/IntroLoader';
 import * as storage from './lib/storage';
 import { listModels } from './lib/openrouter';
 import { runCouncil, generateTitle } from './lib/council';
 
-// Dark or light, remembered between visits, defaulting to the system setting
-function initialTheme() {
+// The 3D chamber is the heaviest part of the app, so it loads separately and
+// the rest of the page works before it arrives.
+const Chamber = lazy(() => import('./scene/Chamber'));
+
+const reducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** The intro plays once per browser session, not on every visit. */
+function shouldPlayIntro() {
+  if (reducedMotion) return false;
   try {
-    const saved = localStorage.getItem('llmcouncil.theme');
-    if (saved) return saved;
+    return !sessionStorage.getItem('llmcouncil.intro');
   } catch {
-    // storage blocked; fall through to the system preference
+    return true;
   }
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+/** Screen size, so the chamber can frame itself around the panel. */
+function useViewport() {
+  const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return size;
+}
+
+/**
+ * Work out what the chamber should show from the latest answer: who's on the
+ * council, what each judge is doing, and which stage we're in.
+ */
+function sceneFrom(conversation, settings) {
+  const last = [...(conversation?.messages || [])].reverse().find((m) => m.role === 'assistant');
+
+  if (!last?.stage1) {
+    return {
+      phase: 'idle',
+      council: settings.councilModels.map((model) => ({ model, state: 'waiting' })),
+      chairman: { model: settings.chairmanModel, state: 'waiting' },
+    };
+  }
+
+  const loading = last.loading || {};
+  const phase = loading.stage1 ? 'opinions' : loading.stage2 ? 'review' : loading.stage3 ? 'verdict' : 'done';
+  const winner = last.metadata?.aggregate_rankings?.[0]?.model;
+  const reviews = last.stage2 || [];
+
+  const council = last.stage1.map((entry) => {
+    const review = reviews.find((r) => r.model === entry.model);
+    const current = phase === 'review' ? review : entry;
+    const text = phase === 'review' ? review?.text : entry.text;
+    const failed = Boolean(entry.error || (phase === 'review' && review?.error));
+
+    let state = 'done';
+    if (failed) state = 'failed';
+    else if (phase === 'opinions' || phase === 'review') {
+      state = !current ? 'waiting' : text ? 'speaking' : 'thinking';
+    }
+
+    return {
+      model: entry.model,
+      state,
+      text,
+      cost: (entry.cost || 0) + (review?.cost || 0),
+      won: phase === 'done' && entry.model === winner,
+    };
+  });
+
+  const v = last.stage3;
+  const chairman = {
+    model: v?.model || settings.chairmanModel,
+    state: !v ? 'waiting' : v.error ? 'failed' : loading.stage3 ? (v.text ? 'speaking' : 'thinking') : 'done',
+    text: v?.text,
+    cost: v?.cost || 0,
+  };
+
+  return { phase, council, chairman };
 }
 
 export default function App() {
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState(storage.listConversations());
   const [currentId, setCurrentId] = useState(null);
   const [conversation, setConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState(storage.getSettings());
   const [showSettings, setShowSettings] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [stats, setStats] = useState(storage.getStats());
   const [models, setModels] = useState([]);
-  const [theme, setTheme] = useState(initialTheme);
-  // Only matters on phones, where the sidebar is a drawer
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [focus, setFocus] = useState(null);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-    try {
-      localStorage.setItem('llmcouncil.theme', theme);
-    } catch {
-      // nothing to do
-    }
-  }, [theme]);
+  const [introPlaying, setIntroPlaying] = useState(shouldPlayIntro);
+  const [chamberReady, setChamberReady] = useState(false);
+  const introOnce = useRef(introPlaying);
+
+  const { w, h } = useViewport();
+  const wide = w >= 768;
 
   // Keeps the latest conversation available inside the streaming callbacks
   const liveRef = useRef(null);
 
   useEffect(() => {
-    setConversations(storage.listConversations());
     // The model list powers the judge picker and the price estimate
     listModels().then(setModels).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (currentId) setConversation(storage.getConversation(currentId));
-  }, [currentId]);
+  const finishIntro = useCallback(() => {
+    setIntroPlaying(false);
+    try {
+      sessionStorage.setItem('llmcouncil.intro', '1');
+    } catch {
+      // storage blocked; the intro will just play again next time
+    }
+  }, []);
+
+  const scene = useMemo(() => sceneFrom(conversation, settings), [conversation, settings]);
+
+  // A new stage pulls the camera back from whoever you clicked on
+  useEffect(() => setFocus(null), [scene.phase]);
+
+  // Frame the council in the space the panel leaves free
+  const offset = wide ? { x: (440 + 16) / 2, y: 0 } : { x: 0, y: Math.round(h * 0.27) };
+  // the space the chamber actually gets once the panel is in place
+  const freeAspect = wide ? (w - 456) / h : w / h;
+  const freeHeight = wide ? 1 : 0.4;
 
   const refresh = () => {
     setConversations(storage.listConversations());
     setStats(storage.getStats());
   };
 
+  const openConversation = (id) => {
+    setCurrentId(id);
+    setConversation(storage.getConversation(id));
+    setDrawerOpen(false);
+  };
+
   const handleNewConversation = () => {
-    const created = storage.createConversation();
-    setConversations(storage.listConversations());
-    setCurrentId(created.id);
-    setConversation(created);
-    setSidebarOpen(false);
+    // A fresh empty screen; the conversation is only saved once you ask something
+    setCurrentId(null);
+    setConversation(null);
+    setDrawerOpen(false);
   };
 
   const handleDeleteConversation = (id) => {
@@ -192,9 +281,15 @@ export default function App() {
   };
 
   const handleSendMessage = async (question) => {
-    if (!currentId || !conversation) return;
+    // Asking from the empty screen starts a new conversation
+    let id = currentId;
+    if (!id) {
+      id = storage.createConversation().id;
+      setCurrentId(id);
+      setConversations(storage.listConversations());
+    }
 
-    const current = storage.getConversation(currentId);
+    const current = storage.getConversation(id);
     const history = storage.conversationHistory(current);
     const isFirstMessage = current.messages.length === 0;
 
@@ -242,9 +337,8 @@ export default function App() {
         cost += titleResult.cost;
       }
 
-      updateLive((msg) => { msg.cost = cost; });
-
-      // Persist the finished exchange
+      // Persist the finished exchange, including judges that failed, so the
+      // record is honest about who took part
       const finished = {
         ...liveRef.current,
         title,
@@ -252,8 +346,8 @@ export default function App() {
           ...liveRef.current.messages.slice(0, -1),
           {
             role: 'assistant',
-            stage1: result.answers,
-            stage2: result.reviews,
+            stage1: result.opinions,
+            stage2: result.allReviews,
             stage3: result.verdict,
             metadata: result.metadata,
             cost,
@@ -274,26 +368,40 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="relative h-full">
+      <Suspense fallback={null}>
+        <Chamber
+          council={scene.council}
+          chairman={scene.chairman}
+          phase={scene.phase}
+          focus={focus}
+          onFocus={setFocus}
+          offset={offset}
+          freeAspect={freeAspect}
+          freeHeight={freeHeight}
+          intro={introOnce.current}
+          lite={!wide}
+          onReady={() => setChamberReady(true)}
+        />
+      </Suspense>
+
+      <TopBar
+        stats={stats}
+        onOpenMenu={() => setDrawerOpen(true)}
+        onNewConversation={handleNewConversation}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+
       <Sidebar
         conversations={conversations}
         currentConversationId={currentId}
-        onSelectConversation={(id) => {
-          setCurrentId(id);
-          setSidebarOpen(false);
-        }}
+        onSelectConversation={openConversation}
         onNewConversation={handleNewConversation}
         onDeleteConversation={handleDeleteConversation}
-        stats={stats}
-        onOpenSettings={() => {
-          setShowSettings(true);
-          setSidebarOpen(false);
-        }}
-        theme={theme}
-        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
       />
+
       <ChatInterface
         conversation={conversation}
         onSendMessage={handleSendMessage}
@@ -301,9 +409,8 @@ export default function App() {
         settings={settings}
         models={models}
         onOpenSettings={() => setShowSettings(true)}
-        onNewConversation={handleNewConversation}
-        onOpenSidebar={() => setSidebarOpen(true)}
       />
+
       {showSettings && (
         <Settings
           settings={settings}
@@ -312,6 +419,8 @@ export default function App() {
           onSaved={setSettings}
         />
       )}
+
+      {introPlaying && <IntroLoader ready={chamberReady} onDone={finishIntro} />}
     </div>
   );
 }

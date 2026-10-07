@@ -1,5 +1,5 @@
 import { ChevronDown, Crown } from 'lucide-react';
-import { Mark } from './Judge';
+import { Mark } from './Mark';
 import { colorFor, vendorOf, shortName } from './brand';
 import { money } from '../lib/cost';
 import { cn } from './ui';

@@ -201,8 +201,10 @@ export async function runCouncil({
   const messages = buildMessages(history, question);
   const stage1 = await runJudges(apiKey, councilModels, messages, 'stage1', emit, signal);
 
+  // Failed judges stay in the list (marked with an error) so they don't vanish
+  // from the room; only the ones that answered feed the next stages.
   const answers = stage1.filter((r) => r.text);
-  emit({ type: 'stage1_complete', data: answers });
+  emit({ type: 'stage1_complete', data: stage1 });
 
   if (answers.length === 0) {
     const reason = stage1.find((r) => r.error)?.error || 'every judge failed';
@@ -223,14 +225,13 @@ export async function runCouncil({
     signal
   );
 
-  const reviews = stage2
-    .filter((r) => r.text)
-    .map((r) => ({ ...r, parsed_ranking: parseRanking(r.text) }));
+  const allReviews = stage2.map((r) => ({ ...r, parsed_ranking: parseRanking(r.text) }));
+  const reviews = allReviews.filter((r) => r.text);
 
   const aggregate = aggregateRankings(reviews, labelToModel);
   emit({
     type: 'stage2_complete',
-    data: reviews,
+    data: allReviews,
     metadata: { label_to_model: labelToModel, aggregate_rankings: aggregate },
   });
 
@@ -252,5 +253,15 @@ export async function runCouncil({
     reviews.reduce((sum, r) => sum + r.cost, 0) +
     (verdict.cost || 0);
 
-  return { answers, reviews, verdict, metadata: { label_to_model: labelToModel, aggregate_rankings: aggregate }, cost };
+  return {
+    // everyone, including judges that failed, for display
+    opinions: stage1,
+    allReviews,
+    // only the ones that worked, which is what the verdict was built from
+    answers,
+    reviews,
+    verdict,
+    metadata: { label_to_model: labelToModel, aggregate_rankings: aggregate },
+    cost,
+  };
 }

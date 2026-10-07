@@ -15,14 +15,25 @@ frontend/
     storage.js      conversations + settings in localStorage
     cost.js         pre-flight price estimate and money formatting
   src/components/
-    Courtroom.jsx   the arena scene; Judge.jsx draws one mech in SVG
     CouncilStrip.jsx the one-line summary shown once the verdict is in
-    brand.js        maker colours, shared by the arena and the strip
+    brand.js        maker colours, shared by the 3D scene and the strip
+    TopBar / Sidebar / IntroLoader  the glass chrome around the scene
+  src/scene/
+    Chamber.jsx     the full-screen three.js stage: lights, floor, camera rig
+    Mech3D.jsx      one mech built from primitives, animated by state
+    marks.js        maker marks as SVG; feeds 2D badges and 3D head textures
     ui.jsx          shared Button, Card, Panel, ModelTabs (Tailwind)
     Stage1/2/3.jsx  the full text under the courtroom
     Settings.jsx    API key and judge picker
   test/             node:test suite, no network
 ```
+
+## The look
+
+Modelled on immersive award-style sites: one full-screen WebGL stage with the
+UI as frosted glass over it, an intro counter on first visit per session, and
+the camera moving with the story. Spectacle lives in the deliberation, which
+is dead waiting time anyway. The verdict must stay instant to read.
 
 ## The product rule
 
@@ -45,13 +56,15 @@ that way.
   Stage 2 adds `parsed_ranking`. Do not reintroduce `response`/`ranking`.
 - **A judge that fails must not take down the council.** Failures become a
   `recused` judge in the courtroom, and the rest carry on.
-- **The arena is dark in both themes on purpose**, so the brand colours pop.
-  Don't theme it with the app tokens.
-- **Speech bubbles are clamped to three lines** and stop at the word `FINAL`,
-  so a long review or its ballot can't cover the arena header.
-- **Phones**: the sidebar is a drawer below `md`, and the bench row is
-  `nowrap` below 640px so four mechs share one line. Check 375px wide after
-  touching either.
+- **Camera fit**: the field of view is vertical. `fit` in `Chamber.jsx` checks
+  width and height separately against the space the panel leaves free. Fog
+  scales with it, or a pulled-back camera fogs the council to black.
+- **Narrow screens** (free width under 0.9 of the height) use a staggered
+  formation and show one speech bubble at a time, rotating between speakers.
+- **Nameplates sit at z=0 under the feet** so they don't swing when mechs turn.
+- **drei `<Html>` logs "synchronously unmount a root" in dev only**, from
+  StrictMode. Production is clean; don't chase it.
+- **Phones**: check 375px wide after touching the scene or the panel.
 - `base` in `vite.config.js` is `/llm-council/` because GitHub Pages serves
   project sites from a subpath. Changing the repo name breaks the build output.
 
