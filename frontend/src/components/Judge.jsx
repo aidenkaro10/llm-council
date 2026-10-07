@@ -1,109 +1,195 @@
 /**
- * One cartoon judge. Everything is drawn with plain SVG shapes so there are no
- * image files to load, and the whole thing animates with CSS.
+ * A council mech. Drawn entirely in SVG, no image files.
+ *
+ * The head is a cube carrying the model maker's mark, the armour is painted in
+ * that maker's colour, and the whole thing reacts to what the model is doing.
  *
  * state: 'waiting' | 'thinking' | 'speaking' | 'done' | 'failed'
- * variant: 0-3, picks the hair/glasses/beard combo so the judges look different
  */
-export default function Judge({ color, state, variant = 0, size = 96 }) {
+
+/** Stylised maker's marks. Simple geometry, not copies of official artwork. */
+function Mark({ vendor, color }) {
+  const stroke = { stroke: color, strokeWidth: 3, fill: 'none', strokeLinecap: 'round' };
+
+  switch (vendor) {
+    case 'openai':
+      // interlocking rosette
+      return (
+        <g {...stroke} strokeWidth="2.4">
+          <ellipse cx="0" cy="0" rx="11" ry="5.5" />
+          <ellipse cx="0" cy="0" rx="11" ry="5.5" transform="rotate(60)" />
+          <ellipse cx="0" cy="0" rx="11" ry="5.5" transform="rotate(120)" />
+        </g>
+      );
+    case 'anthropic':
+      // three-pronged burst
+      return (
+        <g fill={color}>
+          {[0, 120, 240].map((angle) => (
+            <path key={angle} d="M-3 0 L0 -12 L3 0 L0 4 Z" transform={`rotate(${angle})`} />
+          ))}
+        </g>
+      );
+    case 'google':
+      // four-pointed spark
+      return (
+        <path
+          d="M0 -12 Q1.6 -1.6 12 0 Q1.6 1.6 0 12 Q-1.6 1.6 -12 0 Q-1.6 -1.6 0 -12 Z"
+          fill={color}
+        />
+      );
+    case 'x-ai':
+      return (
+        <g {...stroke} strokeWidth="3.4">
+          <line x1="-9" y1="-9" x2="9" y2="9" />
+          <line x1="9" y1="-9" x2="-9" y2="9" />
+        </g>
+      );
+    case 'meta-llama':
+      return (
+        <g {...stroke} strokeWidth="2.6">
+          <circle cx="-5.5" cy="0" r="5.5" />
+          <circle cx="5.5" cy="0" r="5.5" />
+        </g>
+      );
+    case 'mistralai':
+      return (
+        <g fill={color}>
+          <rect x="-11" y="-10" width="22" height="5" />
+          <rect x="-11" y="-2.5" width="22" height="5" />
+          <rect x="-11" y="5" width="22" height="5" />
+        </g>
+      );
+    case 'deepseek':
+      return (
+        <g {...stroke} strokeWidth="2.8">
+          <path d="M10 -4 A 10 10 0 1 0 6 8" />
+          <circle cx="2" cy="-1" r="2" fill={color} />
+        </g>
+      );
+    default:
+      // anything else gets a clean hex sigil
+      return (
+        <polygon
+          points="0,-11 9.5,-5.5 9.5,5.5 0,11 -9.5,5.5 -9.5,-5.5"
+          {...stroke}
+          strokeWidth="2.6"
+        />
+      );
+  }
+}
+
+export default function Judge({ color, vendor, state, variant = 0, size = 118 }) {
   const dead = state === 'failed';
-  const skin = dead ? '#c9c4bd' : '#f3c9a6';
-  const robe = dead ? '#9aa0a6' : color;
-  const happy = state === 'done';
+
+  // Painted armour, plus darker and lighter shades of it for depth
+  const paint = dead ? '#555c66' : color;
+  const shade = dead ? '#3d434b' : `color-mix(in srgb, ${color} 58%, #000)`;
+  const deep = dead ? '#30353c' : `color-mix(in srgb, ${color} 35%, #000)`;
+  const light = dead ? '#6d747e' : `color-mix(in srgb, ${color} 50%, #fff)`;
+  const metal = dead ? '#3a3f46' : '#262b33';
+  const metalLight = dead ? '#4f555d' : '#3a414c';
+  const glow = dead ? '#6b7280' : color;
 
   return (
     <svg
-      className={`judge-svg judge-${state}`}
-      viewBox="0 0 100 112"
+      className={`mech mech-${state}`}
+      viewBox="0 0 152 152"
       width={size}
-      height={size * 1.12}
+      height={size}
       aria-hidden="true"
     >
-      {/* robe and shoulders */}
-      <path d="M14 112 Q14 84 34 78 L66 78 Q86 84 86 112 Z" fill={robe} />
-      {/* white collar bands */}
-      <path d="M44 78 L50 96 L56 78 Z" fill="#ffffff" />
-      <rect x="46" y="76" width="8" height="8" rx="2" fill={skin} />
+      {/* ---------- legs, mostly hidden by the bench ---------- */}
+      <path d="M50 152 L52 124 L66 124 L64 152 Z" fill={metal} />
+      <path d="M90 152 L88 124 L74 124 L76 152 Z" fill={metal} />
 
-      {/* head */}
-      <ellipse cx="50" cy="48" rx="27" ry="29" fill={skin} />
-      {/* ears */}
-      <ellipse cx="22" cy="50" rx="5" ry="7" fill={skin} />
-      <ellipse cx="78" cy="50" rx="5" ry="7" fill={skin} />
+      {/* ---------- left arm, hanging ---------- */}
+      <path d="M26 86 L42 86 L40 112 L28 112 Z" fill={metalLight} />
+      <rect x="26" y="110" width="16" height="16" rx="4" fill={paint} />
+      <rect x="28" y="124" width="12" height="9" rx="3" fill={metal} />
 
-      {/* the wig: three rows of curls, white like a courtroom wig */}
-      <g fill={dead ? '#e3e3e3' : '#f7f4ef'}>
-        <ellipse cx="50" cy="24" rx="30" ry="15" />
-        <circle cx="24" cy="36" r="10" />
-        <circle cx="76" cy="36" r="10" />
-        <circle cx="20" cy="50" r="9" />
-        <circle cx="80" cy="50" r="9" />
-        {variant !== 2 && <circle cx="22" cy="62" r="8" />}
-        {variant !== 2 && <circle cx="78" cy="62" r="8" />}
-        <circle cx="34" cy="18" r="11" />
-        <circle cx="50" cy="14" r="12" />
-        <circle cx="66" cy="18" r="11" />
-      </g>
+      {/* ---------- torso ---------- */}
+      <path d="M46 64 L94 64 L98 76 L90 122 L50 122 L42 76 Z" fill={paint} />
+      {/* chest plate, a V of darker armour */}
+      <path d="M50 70 L90 70 L84 98 L70 104 L56 98 Z" fill={shade} />
+      <path d="M50 70 L90 70 L88 76 L52 76 Z" fill={light} opacity="0.35" />
+      {/* power core, pulses while the model works */}
+      <circle className="mech-core" cx="70" cy="85" r="7.5" fill={glow} />
+      <circle cx="70" cy="85" r="3.2" fill="#fff" opacity={dead ? 0.25 : 0.9} />
+      {/* abdominal plates */}
+      <rect x="56" y="106" width="28" height="5" rx="1.5" fill={deep} />
+      <rect x="58" y="113" width="24" height="5" rx="1.5" fill={deep} />
+      {/* belt */}
+      <rect x="48" y="119" width="44" height="6" rx="2" fill={metal} />
 
-      {/* eyebrows, thicker on variant 1 for a stern judge */}
-      <g stroke={dead ? '#a9a9a9' : '#6b4b35'} strokeWidth={variant === 1 ? 4 : 2.5} strokeLinecap="round">
-        <line x1="36" y1={variant === 1 ? 41 : 39} x2="46" y2={variant === 1 ? 39 : 38} />
-        <line x1="54" y1={variant === 1 ? 39 : 38} x2="64" y2={variant === 1 ? 41 : 39} />
-      </g>
-
-      {/* eyes: closed happy arcs when finished, X when the model failed */}
-      {dead ? (
-        <g stroke="#7a7a7a" strokeWidth="3" strokeLinecap="round">
-          <line x1="37" y1="45" x2="45" y2="53" />
-          <line x1="45" y1="45" x2="37" y2="53" />
-          <line x1="55" y1="45" x2="63" y2="53" />
-          <line x1="63" y1="45" x2="55" y2="53" />
+      {/* ---------- shoulder pauldrons ---------- */}
+      <path d="M18 74 Q18 62 32 60 L48 62 L46 88 L24 90 Q18 84 18 74 Z" fill={paint} />
+      <path d="M122 74 Q122 62 108 60 L92 62 L94 88 L116 90 Q122 84 122 74 Z" fill={paint} />
+      <path d="M21 70 Q23 64 32 63 L45 64" stroke={light} strokeWidth="3" fill="none" opacity="0.55" />
+      <path d="M119 70 Q117 64 108 63 L95 64" stroke={light} strokeWidth="3" fill="none" opacity="0.55" />
+      {variant >= 2 && (
+        <g stroke={deep} strokeWidth="2" strokeLinecap="round">
+          <line x1="24" y1="76" x2="40" y2="77" />
+          <line x1="24" y1="82" x2="40" y2="83" />
+          <line x1="116" y1="76" x2="100" y2="77" />
+          <line x1="116" y1="82" x2="100" y2="83" />
         </g>
-      ) : happy ? (
-        <g stroke="#3a2a1d" strokeWidth="3" fill="none" strokeLinecap="round">
-          <path d="M35 50 Q41 43 47 50" />
-          <path d="M53 50 Q59 43 65 50" />
+      )}
+
+      {/* ---------- right arm, holding the gavel out to the side ---------- */}
+      <path d="M108 86 L120 84 L132 100 L124 106 Z" fill={metalLight} />
+
+      {/* ---------- the gavel ---------- */}
+      <g className="mech-weapon">
+        <rect x="128" y="48" width="5.5" height="74" rx="2.75" fill={metalLight} />
+        <rect x="116" y="36" width="30" height="16" rx="3.5" fill={paint} />
+        <rect x="116" y="36" width="30" height="5" rx="2.5" fill={light} opacity="0.6" />
+        <rect x="114" y="38" width="4" height="12" rx="1.5" fill={deep} />
+        <rect x="144" y="38" width="4" height="12" rx="1.5" fill={deep} />
+      </g>
+      {/* the fist goes over the haft so it reads as gripped */}
+      <rect x="122" y="96" width="16" height="13" rx="4" fill={paint} />
+      <rect x="122" y="96" width="16" height="4" rx="2" fill={light} opacity="0.4" />
+
+      {/* ---------- neck ---------- */}
+      <rect x="62" y="54" width="16" height="12" fill={metal} />
+      <rect x="62" y="58" width="16" height="2" fill={metalLight} />
+
+      {/* ---------- head: a cube, mostly front-on so the mark reads ---------- */}
+      <g className="mech-head">
+        {/* top face */}
+        <path d="M42 10 L50 3 L106 3 L98 10 Z" fill={light} />
+        {/* side face */}
+        <path d="M98 10 L106 3 L106 50 L98 57 Z" fill={shade} />
+        {/* front face */}
+        <rect x="42" y="10" width="56" height="47" rx="3" fill={paint} />
+        <rect x="42" y="10" width="56" height="47" rx="3" fill="none" stroke={light} strokeOpacity="0.35" strokeWidth="1.5" />
+
+        {/* the maker's mark is the face */}
+        <g transform="translate(70, 31) scale(1.45)">
+          <Mark vendor={vendor} color={dead ? '#8b919a' : '#ffffff'} />
         </g>
-      ) : (
-        <>
-          <ellipse cx="41" cy="48" rx="6.5" ry="7" fill="#ffffff" />
-          <ellipse cx="59" cy="48" rx="6.5" ry="7" fill="#ffffff" />
-          {/* pupils dart around while thinking */}
-          <g className="judge-pupils" fill="#2b1d12">
-            <circle cx="41" cy="49" r="3.2" />
-            <circle cx="59" cy="49" r="3.2" />
+
+        {/* sensor strip under the mark, flickers while working */}
+        <rect
+          className="mech-sensor"
+          x="52"
+          y="49"
+          width="36"
+          height="3"
+          rx="1.5"
+          fill={dead ? '#6b7280' : '#ffffff'}
+          opacity={dead ? 0.25 : 0.75}
+        />
+
+        {/* antenna on every other mech */}
+        {variant % 2 === 0 && (
+          <g strokeLinecap="round">
+            <line x1="92" y1="3" x2="96" y2="-8" stroke={metalLight} strokeWidth="2.5" />
+            <circle cx="96" cy="-8" r="3" fill={glow} />
           </g>
-        </>
-      )}
-
-      {/* glasses on variant 0 and 3 */}
-      {(variant === 0 || variant === 3) && !dead && (
-        <g stroke="#4a4a4a" strokeWidth="2" fill="none" strokeLinecap="round">
-          <circle cx="41" cy="48" r="9.5" />
-          <circle cx="59" cy="48" r="9.5" />
-          <line x1="50.5" y1="48" x2="49.5" y2="48" />
-          <line x1="31.5" y1="46" x2="25" y2="44" />
-          <line x1="68.5" y1="46" x2="75" y2="44" />
-        </g>
-      )}
-
-      {/* mouth: opens and closes while the model is writing */}
-      <g className="judge-mouth">
-        {state === 'speaking' ? (
-          <ellipse cx="50" cy="62" rx="7" ry="6" fill="#8c3b3b" />
-        ) : happy ? (
-          <path d="M42 60 Q50 69 58 60" stroke="#8c3b3b" strokeWidth="3" fill="none" strokeLinecap="round" />
-        ) : dead ? (
-          <path d="M43 64 Q50 59 57 64" stroke="#7a7a7a" strokeWidth="3" fill="none" strokeLinecap="round" />
-        ) : (
-          <path d="M44 62 L56 62" stroke="#8c3b3b" strokeWidth="3" fill="none" strokeLinecap="round" />
         )}
       </g>
-
-      {/* big white moustache for variant 2 */}
-      {variant === 2 && !dead && (
-        <path d="M38 58 Q50 54 62 58 Q50 64 38 58" fill="#f1ece4" />
-      )}
     </svg>
   );
 }

@@ -15,7 +15,8 @@ frontend/
     storage.js      conversations + settings in localStorage
     cost.js         pre-flight price estimate and money formatting
   src/components/
-    Courtroom.jsx   the cartoon scene; Judge.jsx draws one judge in SVG
+    Courtroom.jsx   the arena scene; Judge.jsx draws one mech in SVG
+    ui.jsx          shared Button, Card, Panel, ModelTabs (Tailwind)
     Stage1/2/3.jsx  the full text under the courtroom
     Settings.jsx    API key and judge picker
   test/             node:test suite, no network
@@ -33,6 +34,13 @@ frontend/
   Stage 2 adds `parsed_ranking`. Do not reintroduce `response`/`ranking`.
 - **A judge that fails must not take down the council.** Failures become a
   `recused` judge in the courtroom, and the rest carry on.
+- **The arena is dark in both themes on purpose**, so the brand colours pop.
+  Don't theme it with the app tokens.
+- **Speech bubbles are clamped to three lines** and stop at the word `FINAL`,
+  so a long review or its ballot can't cover the arena header.
+- **Phones**: the sidebar is a drawer below `md`, and the bench row is
+  `nowrap` below 640px so four mechs share one line. Check 375px wide after
+  touching either.
 - `base` in `vite.config.js` is `/llm-council/` because GitHub Pages serves
   project sites from a subpath. Changing the repo name breaks the build output.
 

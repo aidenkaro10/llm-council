@@ -1,8 +1,9 @@
 # LLM Council
 
 Four AI models answer your question, read each other's answers without knowing
-who wrote what, rank them, and a chairman writes the final verdict. You watch
-it happen in a courtroom, and you see exactly what it cost.
+who wrote what, rank them, and a chairman writes the final verdict. Each model
+is a mech with its maker's mark for a head, and you watch them argue it out in
+a courtroom, with the exact cost on every nameplate.
 
 **[Open it →](https://aidenkaro10.github.io/llm-council/)** Bring your own
 OpenRouter key. Nothing to install.
@@ -26,6 +27,22 @@ OpenRouter key. Nothing to install.
    then writes one final answer.
 
 The judge who comes first in the blind peer review gets a crown.
+
+## The mechs
+
+Every council member is drawn as a mech in its maker's colour, with a cube head
+carrying a stylised version of that maker's mark: green for OpenAI, blue for
+Google, orange for Anthropic, chrome for xAI, and so on. Any model without a
+known maker gets a colour picked from its name, so custom councils still look
+deliberate.
+
+While a model thinks, its head scans and its core pulses. While it writes, a
+speech bubble shows its latest words. If it fails, it goes dark and says
+"offline" instead of taking the rest of the council down with it. When the
+verdict lands, the chairman bangs the gavel.
+
+The marks are simple geometric drawings for telling the judges apart, not the
+companies' official logos, and nothing here is endorsed by any of them.
 
 ## Your API key
 
@@ -67,7 +84,9 @@ to match your repo name.
 
 - React + Vite, no backend, no database
 - Streams from OpenRouter with `fetch` and server-sent events
-- Judges are drawn in inline SVG, so there are no image assets
+- Tailwind with a shadcn-style token set, light and dark themes
+- Mechs are drawn in inline SVG, so there are no image assets
+- Works on phones: the sidebar becomes a drawer and the bench squeezes to fit
 - Conversations and settings live in localStorage
 
 ## Credit and licence

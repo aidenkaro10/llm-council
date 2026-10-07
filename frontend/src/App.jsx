@@ -5,7 +5,17 @@ import Settings from './components/Settings';
 import * as storage from './lib/storage';
 import { listModels } from './lib/openrouter';
 import { runCouncil, generateTitle } from './lib/council';
-import './App.css';
+
+// Dark or light, remembered between visits, defaulting to the system setting
+function initialTheme() {
+  try {
+    const saved = localStorage.getItem('llmcouncil.theme');
+    if (saved) return saved;
+  } catch {
+    // storage blocked; fall through to the system preference
+  }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 export default function App() {
   const [conversations, setConversations] = useState([]);
@@ -16,6 +26,18 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [stats, setStats] = useState(storage.getStats());
   const [models, setModels] = useState([]);
+  const [theme, setTheme] = useState(initialTheme);
+  // Only matters on phones, where the sidebar is a drawer
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    try {
+      localStorage.setItem('llmcouncil.theme', theme);
+    } catch {
+      // nothing to do
+    }
+  }, [theme]);
 
   // Keeps the latest conversation available inside the streaming callbacks
   const liveRef = useRef(null);
@@ -40,6 +62,7 @@ export default function App() {
     setConversations(storage.listConversations());
     setCurrentId(created.id);
     setConversation(created);
+    setSidebarOpen(false);
   };
 
   const handleDeleteConversation = (id) => {
@@ -251,15 +274,25 @@ export default function App() {
   };
 
   return (
-    <div className="app">
+    <div className="flex h-full overflow-hidden">
       <Sidebar
         conversations={conversations}
         currentConversationId={currentId}
-        onSelectConversation={setCurrentId}
+        onSelectConversation={(id) => {
+          setCurrentId(id);
+          setSidebarOpen(false);
+        }}
         onNewConversation={handleNewConversation}
         onDeleteConversation={handleDeleteConversation}
         stats={stats}
-        onOpenSettings={() => setShowSettings(true)}
+        onOpenSettings={() => {
+          setShowSettings(true);
+          setSidebarOpen(false);
+        }}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       <ChatInterface
         conversation={conversation}
@@ -268,6 +301,8 @@ export default function App() {
         settings={settings}
         models={models}
         onOpenSettings={() => setShowSettings(true)}
+        onNewConversation={handleNewConversation}
+        onOpenSidebar={() => setSidebarOpen(true)}
       />
       {showSettings && (
         <Settings
