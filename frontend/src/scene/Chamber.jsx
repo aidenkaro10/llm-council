@@ -12,6 +12,7 @@ import { easing } from 'maath';
 import * as THREE from 'three';
 import Mech3D from './Mech3D';
 import CourtSet from './CourtSet';
+import Audience from './Audience';
 import { colorFor, vendorOf, shortName } from '../components/brand';
 import './chamber.css';
 
@@ -208,7 +209,7 @@ function Clash({ from, to, color }) {
  * whoever has the floor, in close for the verdict. A slow dolly every time,
  * never a cut, with a smooth shake when a gavel lands hard.
  */
-function CameraRig({ phase, focus, seats, council, intro, calm, fit, freeHeight, voiceSpot, shake }) {
+function CameraRig({ phase, focus, seats, council, intro, calm, fit, freeHeight, voiceSpot, judgeOnFloor, shake, compact }) {
   const { camera } = useThree();
   const base = useRef(new THREE.Vector3(0, 2.3, 10.5));
   const look = useRef(new THREE.Vector3(0, 1.8, -1));
@@ -237,18 +238,25 @@ function CameraRig({ phase, focus, seats, council, intro, calm, fit, freeHeight,
       const [x, , z] = seats[focusIndex];
       pos = [x * 0.85, 2.4, z + 4.4 + (1 - freeHeight) * 5];
       target = [x, 2, z];
+    } else if (judgeOnFloor && voiceSpot && phase !== 'idle' && phase !== 'done') {
+      // a medium shot on whoever is talking, or reacting: the sitcom angle
+      const [vx, , vz] = voiceSpot;
+      const sway = calm ? 0 : Math.sin(t * 0.2) * 0.25;
+      // on a narrow screen, centre the speaker so their bubble isn't cut off
+      pos = [vx * (compact ? 0.9 : 0.6) + sway, 2.4, vz + 8.4 * fit * 0.82];
+      target = [vx * (compact ? 1 : 0.8), 2.2, vz];
+      smooth = 0.65;
     } else if (phase === 'verdict') {
       pos = [0, 4.1, 2.6 + (1 - freeHeight) * 6];
       target = [CHAIRMAN_SPOT[0], 3.7, CHAIRMAN_SPOT[2]];
       smooth = 1;
     } else if (phase === 'opinions' || phase === 'review') {
-      // drift towards whoever has the floor, without losing the room
-      const vx = voiceSpot ? voiceSpot[0] : 0;
+      // between lines: the whole room
       const low = phase === 'review';
       const sway = calm ? 0 : Math.sin(t * 0.18) * 0.4;
-      pos = [vx * 0.32 + sway, low ? 1.8 : 2.3, (low ? 10 : 10.4) * fit];
-      target = [vx * 0.45, 2.1, -1];
-      smooth = 1.2;
+      pos = [sway, low ? 1.8 : 2.3, (low ? 10 : 10.4) * fit];
+      target = [0, 2.1, -1];
+      smooth = 1.1;
     } else {
       const sway = calm ? 0 : Math.sin(t * 0.1) * 1.4;
       pos = [sway, 2.6 + (fit - 1) * 1.2, 10.8 * fit];
@@ -334,18 +342,44 @@ export default function Chamber({
 
   const voiceIndex = s.voice ? council.findIndex((c) => c.model === s.voice) : -1;
   const voiceSpot = s.voice === 'chair' ? chairHead : voiceIndex >= 0 ? headOf(voiceIndex) : null;
+  // a beat into a roast, the camera cuts to the face of whoever is on the receiving end
+  const reactorIndex =
+    s.reactor && performance.now() - s.reactor.at < 1900 ? council.findIndex((c) => c.model === s.reactor.who) : -1;
+  const shotSpot = reactorIndex >= 0 ? headOf(reactorIndex) : voiceSpot;
+  const judgeOnFloor = voiceIndex >= 0 || reactorIndex >= 0;
 
-  // In cross-examination the two sides of an argument turn to face each other
+  // Who looks at whom: a judge faces whoever they're addressing, the one being
+  // addressed turns to face them, and in cross-examination the two sides of an
+  // argument face off
+  const now = performance.now();
   const clashFrom = s.clash ? council.findIndex((c) => c.model === s.clash.from) : -1;
   const clashTo = s.clash ? council.findIndex((c) => c.model === s.clash.to) : -1;
-  const turnFor = (i) => {
-    if (phase !== 'review') return 0;
-    const other = i === clashFrom ? clashTo : i === clashTo ? clashFrom : -1;
+  const indexOf = (model) => council.findIndex((c) => c.model === model);
+
+  const yawTowards = (i, other) => {
     const [x, , z] = seats[i];
     const [tx, tz] = other >= 0 ? [seats[other][0], seats[other][2]] : [0, -1];
     const want = Math.atan2(tx - x, tz - z) - yaws[i];
-    const wrapped = Math.atan2(Math.sin(want), Math.cos(want));
-    return THREE.MathUtils.clamp(wrapped, -0.6, 0.6);
+    return Math.atan2(Math.sin(want), Math.cos(want));
+  };
+
+  const turnFor = (i) => {
+    const model = council[i].model;
+    const g = s.gestures?.[model];
+    if (g?.target && now - g.at < 2600) return THREE.MathUtils.clamp(yawTowards(i, indexOf(g.target)), -0.6, 0.6);
+    if (s.reactor?.who === model && now - s.reactor.at < 2600 && s.voice && s.voice !== 'chair') {
+      return THREE.MathUtils.clamp(yawTowards(i, indexOf(s.voice)), -0.6, 0.6);
+    }
+    if (phase !== 'review') return 0;
+    const other = i === clashFrom ? clashTo : i === clashTo ? clashFrom : -1;
+    return THREE.MathUtils.clamp(yawTowards(i, other), -0.6, 0.6);
+  };
+
+  // where a pointing judge aims the gavel, relative to where its body faces
+  const aimFor = (i) => {
+    const g = s.gestures?.[council[i].model];
+    if (!g?.target) return 0;
+    return yawTowards(i, indexOf(g.target)) - turnFor(i);
   };
 
   // Keep the beam's endpoints stable between renders so it doesn't flicker.
@@ -395,8 +429,10 @@ export default function Chamber({
         calm={calm}
         fit={fit}
         freeHeight={freeHeight}
-        voiceSpot={voiceSpot}
+        voiceSpot={shotSpot}
+        judgeOnFloor={judgeOnFloor}
         shake={s.shake}
+        compact={compact}
       />
 
       {/* warm court lighting, plus soft studio light for the glossy paint */}
@@ -438,15 +474,16 @@ export default function Chamber({
             position={seats[i]}
             faceYaw={yaws[i]}
             turn={turnFor(i)}
+            aimYaw={aimFor(i)}
             phaseOffset={i * 1.3}
             onSelect={onFocus}
             showLabels={!lite || phase !== 'idle'}
-            // narrow screens: only whoever has the floor speaks aloud
-            showWords={!compact || judge.model === s.voice}
             isVoice={judge.model === s.voice}
             slamAt={s.slams?.[judge.model] || 0}
             burst={s.bursts?.[judge.model] || null}
-            labels={labels}
+            line={s.lines?.[judge.model] || null}
+            emotion={s.emotions?.[judge.model] || null}
+            gesture={s.gestures?.[judge.model] || null}
           />
         ))}
 
@@ -466,12 +503,18 @@ export default function Chamber({
             onSelect={onFocus}
             isVoice={s.voice === 'chair'}
             slamAt={s.slams?.chair || 0}
+            line={s.lines?.chair || null}
+            emotion={s.emotions?.chair || null}
+            subtitle={!Object.keys(s.lines || {}).some((k) => k !== 'chair')}
+            labels={labels}
           />
         )}
 
         {s.clash && clashEnds && (
           <Clash key={s.clash.at} from={clashEnds[0]} to={clashEnds[1]} color={colorFor(s.clash.from)} />
         )}
+
+        <Audience crowd={s.crowd} lite={lite} />
 
         <Halo color={chairColor} active={phase === 'verdict' || phase === 'done'} />
         <Sparkles count={lite ? 30 : 70} scale={[16, 8, 10]} position={[0, 3, -2]} size={1.6} speed={0.25} opacity={0.5} color="#ffe6c4" />

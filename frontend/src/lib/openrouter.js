@@ -53,12 +53,15 @@ export async function getCredits(apiKey) {
   return { total, used, remaining: total - used };
 }
 
-/** One non-streaming call. Used for the short conversation title. */
-export async function askOnce(apiKey, model, messages) {
+/**
+ * One non-streaming call. Used for the conversation title and the episode's
+ * script. Extra request options (like response_format) go in `options`.
+ */
+export async function askOnce(apiKey, model, messages, options = {}) {
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: headers(apiKey),
-    body: JSON.stringify({ model, messages }),
+    body: JSON.stringify({ model, messages, ...options }),
   });
   if (!response.ok) {
     throw new Error(`${model}: ${await describeError(response)}`);

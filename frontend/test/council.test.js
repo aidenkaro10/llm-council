@@ -212,3 +212,47 @@ test('bubbles name the model behind each anonymous label', () => {
   );
   assert.equal(nameNames('no labels here', null), 'no labels here');
 });
+
+// --- the episode's script ---------------------------------------------------
+
+import { parseScript, buildScriptPrompt } from '../src/lib/script.js';
+
+const CAST = ['openai/gpt-x', 'x-ai/grok-y'];
+
+test('reads a well-formed script', () => {
+  const reply = JSON.stringify({
+    lines: [
+      { who: 'openai/gpt-x', say: 'Great question!', to: 'x-ai/grok-y', emotion: 'smug', action: 'point', crowd: 'laugh' },
+    ],
+  });
+  assert.deepEqual(parseScript(reply, CAST), [
+    { who: 'openai/gpt-x', say: 'Great question!', to: 'x-ai/grok-y', emotion: 'smug', action: 'point', crowd: 'laugh' },
+  ]);
+});
+
+test('survives a chatty writer and short model names', () => {
+  const reply = 'Sure! Here you go:\n{"lines":[{"who":"grok-y","say":"Rigged.","emotion":"furious","action":"moonwalk"}]}\nEnjoy!';
+  const [line] = parseScript(reply, CAST);
+  assert.equal(line.who, 'x-ai/grok-y');
+  assert.equal(line.emotion, 'neutral', 'unknown emotions fall back');
+  assert.equal(line.action, 'none', 'unknown actions fall back');
+  assert.equal(line.to, null);
+});
+
+test('drops lines from judges who are not in the room', () => {
+  const reply = '{"lines":[{"who":"someone/else","say":"Hi"},{"who":"gpt-x","say":"Hello"}]}';
+  assert.deepEqual(parseScript(reply, CAST).map((l) => l.who), ['openai/gpt-x']);
+});
+
+test('garbage in, empty script out', () => {
+  assert.deepEqual(parseScript('not json at all', CAST), []);
+  assert.deepEqual(parseScript('', CAST), []);
+});
+
+test('the writer is given what each judge really said', () => {
+  const prompt = buildScriptPrompt('Is cereal soup?', [
+    { model: 'openai/gpt-x', text: 'No, cereal is not soup.' },
+  ]);
+  assert.ok(prompt.includes('No, cereal is not soup.'));
+  assert.ok(prompt.includes('The Overachiever'));
+});

@@ -23,12 +23,16 @@ frontend/
                     spotlight on the speaker, energy beams
     CourtSet.jsx    bench, high bench, columns, seal, bar, aisle, lectern
     Mech3D.jsx      one mech behind the bench, gavel slams, outbursts
-    useShow.js      the director: who has the floor, slams, outbursts,
-                    case card, scorecard, finale; cues the sound
+    useShow.js      the director: runs the episode (entrances, ad-libs, the
+                    script, results, finale); one speaker at a time
+    Audience.jsx    the robot studio audience, reacting to crowd cues
     sound.js        Web Audio synth: gavel, objection, chatter, zap, fanfare,
                     ambient hum. Off by default
     marks.js / textures.js  SVG marks and the seal, turned into textures
-  src/components/ShowOverlay.jsx  title cards over the scene, never the panel
+  src/components/ShowOverlay.jsx  broadcast graphics over the scene, never the
+                    panel: case card, round banners, lower thirds, scoreboard
+  src/lib/personas.js  the cast: each maker's character and canned lines
+  src/lib/script.js    the comedy script: prompt, call, and a strict parser
     ui.jsx          shared Button, Card, Panel, ModelTabs (Tailwind)
     Stage1/2/3.jsx  the full text under the courtroom
     Settings.jsx    API key and judge picker
@@ -52,6 +56,13 @@ prompt asks for a short, direct answer that never mentions the council; keep it
 that way.
 
 ## The show
+
+It's a sitcom. After stage 1, `writeScript` asks a cheap fast model
+(`SCRIPT_MODEL`) to turn the real answers into 8 to 10 lines of comedy. It runs
+in parallel with stages 2 and 3 and is never awaited for more than 1.5s; if it
+fails the show falls back to canned ad-libs from `personas.js`. Judges' bubbles
+show only scripted or canned lines, never their real streaming text (that's in
+"How they got there"); the chairman's bubble subtitles the verdict.
 
 Everything in `useShow.js` reacts to real progress and must never delay the
 answer. Beats: case called (3 chair taps) on entering opinions; the floor

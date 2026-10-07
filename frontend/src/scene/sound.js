@@ -220,6 +220,101 @@ function fanfare() {
   });
 }
 
+// --- the studio audience ----------------------------------------------------
+
+/** A crowd of voices through vowel filters: the building block for reactions. */
+function crowd({ voices = 10, vowel, length, pitch = [150, 280], chop = 0, glide = 0.85, level = 0.05 }) {
+  const t = ctx.currentTime;
+  // formant frequencies give the vowel its shape: "oo" or "ah"
+  const formants = vowel === 'oo' ? [320, 800] : [760, 1150];
+  const bus = ctx.createGain();
+  envelope(bus, t, level, 0.12, length);
+  out(bus, 0.5);
+  const filters = formants.map((f) => {
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f;
+    bp.Q.value = 5;
+    bp.connect(bus);
+    return bp;
+  });
+
+  for (let v = 0; v < voices; v++) {
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    const start = pitch[0] + Math.random() * (pitch[1] - pitch[0]);
+    const at = t + Math.random() * 0.12;
+    osc.frequency.setValueAtTime(start, at);
+    osc.frequency.exponentialRampToValueAtTime(start * glide, at + length);
+    const g = ctx.createGain();
+    g.gain.value = 0.5 + Math.random() * 0.5;
+    // laughing is the vowel chopped into "ha-ha-ha"
+    if (chop) {
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = chop * (0.8 + Math.random() * 0.4);
+      const depth = ctx.createGain();
+      depth.gain.value = 0.5;
+      lfo.connect(depth).connect(g.gain);
+      lfo.start(at);
+      lfo.stop(at + length + 0.2);
+    }
+    osc.connect(g);
+    filters.forEach((f) => g.connect(f));
+    osc.start(at);
+    osc.stop(at + length + 0.3);
+  }
+}
+
+function laugh() {
+  crowd({ vowel: 'ah', length: 1.5, chop: 6, glide: 0.75, level: 0.06 });
+}
+
+function ooh() {
+  crowd({ vowel: 'oo', length: 1.1, pitch: [170, 300], glide: 0.8, level: 0.07 });
+}
+
+/** A sharp intake of breath from the crowd. */
+function gasp() {
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(0.6);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.setValueAtTime(900, t);
+  bp.frequency.linearRampToValueAtTime(1800, t + 0.3);
+  bp.Q.value = 1.5;
+  const g = ctx.createGain();
+  envelope(g, t, 0.25, 0.08, 0.35);
+  src.connect(bp).connect(g);
+  out(g, 0.6);
+  src.start(t);
+}
+
+/** Applause: lots of tiny claps, building and fading. */
+function applause(seconds = 2.6) {
+  const t = ctx.currentTime;
+  const clap = noiseBuffer(0.03);
+  const bus = ctx.createGain();
+  bus.gain.value = 0.35;
+  out(bus, 0.7);
+  const claps = Math.floor(seconds * 70);
+  for (let i = 0; i < claps; i++) {
+    // denser in the middle, like a real round of applause
+    const u = Math.random();
+    const at = t + seconds * (u < 0.5 ? Math.sqrt(u / 2) : 1 - Math.sqrt((1 - u) / 2));
+    const src = ctx.createBufferSource();
+    src.buffer = clap;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900 + Math.random() * 2200;
+    bp.Q.value = 1.2;
+    const g = ctx.createGain();
+    envelope(g, at, 0.2 + Math.random() * 0.5, 0.002, 0.04);
+    src.connect(bp).connect(g).connect(bus);
+    src.start(at);
+  }
+}
+
 /** The low hum of a big quiet room, under everything while sound is on. */
 function startAmbient() {
   if (ambient) return;
@@ -267,7 +362,7 @@ function stopAmbient() {
 
 // --- the controls the app uses ----------------------------------------------
 
-const SOUNDS = { gavel, objection, chatter, zap, fanfare };
+const SOUNDS = { gavel, objection, chatter, zap, fanfare, laugh, ooh, gasp, applause };
 
 export function setSoundEnabled(on) {
   enabled = on;

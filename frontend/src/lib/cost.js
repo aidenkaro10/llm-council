@@ -43,6 +43,9 @@ export function estimateCost(councilModels, chairmanModel, models) {
       (stage3Prompt * chairPrice.promptPrice + VERDICT_TOKENS * chairPrice.completionPrice) / 1e6;
   }
 
+  // plus the episode's script, written by a small fast model
+  total += 0.003;
+
   return {
     estimate: total,
     // if we have no prices for some judges the number is understated, so say so

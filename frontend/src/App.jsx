@@ -103,6 +103,8 @@ function sceneFrom(conversation, settings) {
     rankings: last.metadata?.aggregate_rankings || [],
     // "Response A" -> the real model, so the arguing on screen names names
     labels: last.metadata?.label_to_model || null,
+    // the comedy scene written from the real debate, once it's back
+    script: last.script || null,
   };
 }
 
@@ -325,6 +327,13 @@ export default function App() {
         });
         break;
 
+      case 'script':
+        // the episode's script arrived; the director picks it up from here
+        updateLive((msg) => {
+          msg.script = event.lines;
+        });
+        break;
+
       default:
         break;
     }
@@ -411,6 +420,7 @@ export default function App() {
             stage2: result.allReviews,
             stage3: result.verdict,
             metadata: result.metadata,
+            script: result.script,
             cost,
           },
         ],
@@ -449,12 +459,13 @@ export default function App() {
         />
       </Suspense>
 
-      <ShowOverlay show={show} wide={wide} />
+      <ShowOverlay show={show} wide={wide} chairModel={scene.chairman?.model} />
 
       <TopBar
         stats={stats}
         soundOn={soundOn}
         onToggleSound={() => toggleSound(!soundOn)}
+        live={isLoading}
         onOpenMenu={() => setDrawerOpen(true)}
         onNewConversation={handleNewConversation}
         onOpenSettings={() => setShowSettings(true)}

@@ -8,6 +8,7 @@
  */
 
 import { streamModel, askOnce } from './openrouter.js';
+import { writeScript } from './script.js';
 
 /** Build the chat history the judges see, so follow-up questions have context. */
 export function buildMessages(history, question) {
@@ -211,6 +212,16 @@ export async function runCouncil({
     throw new Error(`The council could not sit: ${reason}`);
   }
 
+  // The episode's script is written from these answers while the review and
+  // verdict run, so it never holds anything up
+  const scriptPromise =
+    answers.length > 1
+      ? writeScript(apiKey, question, answers).then((script) => {
+          if (script.lines.length) emit({ type: 'script', lines: script.lines });
+          return script;
+        })
+      : Promise.resolve({ lines: [], cost: 0 });
+
   // --- Stage 2: cross-examination ---
   emit({ type: 'stage2_start' });
   const { prompt, labelToModel } = buildRankingPrompt(question, answers);
@@ -248,10 +259,17 @@ export async function runCouncil({
   );
   emit({ type: 'stage3_complete', data: verdict });
 
+  // The script is almost always back long before this; don't wait long if not
+  const script = await Promise.race([
+    scriptPromise,
+    new Promise((resolve) => setTimeout(() => resolve({ lines: [], cost: 0 }), 1500)),
+  ]);
+
   const cost =
     answers.reduce((sum, r) => sum + r.cost, 0) +
     reviews.reduce((sum, r) => sum + r.cost, 0) +
-    (verdict.cost || 0);
+    (verdict.cost || 0) +
+    (script.cost || 0);
 
   return {
     // everyone, including judges that failed, for display
@@ -262,6 +280,7 @@ export async function runCouncil({
     reviews,
     verdict,
     metadata: { label_to_model: labelToModel, aggregate_rankings: aggregate },
+    script: script.lines,
     cost,
   };
 }

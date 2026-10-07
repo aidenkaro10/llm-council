@@ -18,23 +18,26 @@ other blind, and you get one short verdict.
    play favourites.
 3. A chairman writes one answer from all of it.
 
-While they deliberate, it's a show. Each model is a 3D mech with its maker's
-mark for a face, standing at the bench of a courtroom.
+While they deliberate, it's a show: a courtroom comedy with a cast.
 
-1. **Order in the court.** The chairman bangs the gavel and your question
-   comes up as the case.
-2. **Opening arguments.** Judges take the floor in turn under a spotlight,
-   chattering in robot bleeps.
-3. **Cross-examination.** They turn on each other. Gavels slam, energy arcs
-   between whoever is arguing, and OBJECTION! and HEARSAY! fly. Their words
-   name the judge they're attacking.
-4. **The votes are in.** A scorecard shows the blind-review ranking and the
-   winner is crowned.
-5. **The verdict.** The camera pushes in on the chairman as it's written, then
-   one last gavel.
+Every model plays a character based on its public reputation. GPT is the
+Overachiever with seven bullet points, Claude the Overthinker who disagrees
+respectfully in advance, Gemini the Eager One who already Googled it, Grok the
+Wildcard who thinks it's all rigged.
 
-Sound is off until you turn it on with the speaker button. It's all generated
-in the browser, no audio files.
+1. **Order in the court.** The chairman bangs the gavel and your question comes
+   up as the case. Each judge makes an entrance.
+2. **The argument.** Once the judges have answered, a small fast model writes a
+   short comedy scene out of their real disagreement, and the cast performs it:
+   pointing gavels, facepalms, OBJECTION!, LED faces that go smug, shocked or
+   furious, and the camera cutting to whoever just got roasted.
+3. **The votes are in.** A game-show scoreboard shows the blind-review ranking.
+   The winner gloats, the loser sulks.
+4. **The verdict.** The chairman writes it, then one last gavel.
+
+A studio audience of odd little robots (a toaster, a robo-vac in a top hat, a
+TV-head) laughs, gasps and applauds along. Sound is off until you hit the
+speaker button. It's all generated in the browser, no audio files.
 
 Then you see the verdict. Everything else, every judge's answer and every
 review, is one click away under **How they got there**.
@@ -42,7 +45,8 @@ review, is one click away under **How they got there**.
 ## Your key and your money
 
 Your key stays in your browser and goes straight to openrouter.ai. There is no
-server. A question with four flagship models costs about 7 cents; the app shows
+server. A question with four flagship models costs about 7 cents, plus about a
+third of a cent for the comedy script; the app shows
 an estimate before you send and the real cost after. Swap in cheaper judges in
 Settings to spend less.
 

@@ -55,16 +55,112 @@
   100% { opacity: 0; transform: translateY(-10px) scale(1.01); filter: blur(6px); }
 }
 
-.score-card {
-  width: min(380px, calc(100% - 32px));
-  padding: 18px 18px 20px;
-  border-radius: 20px;
-  animation: score-card 3.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+/* --- round banners, game-show style ----------------------------------------- */
+
+.round-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 10px 22px 11px;
+  border-radius: 999px;
+  background: oklch(0.1 0.01 270 / 82%);
+  border: 1px solid oklch(0.85 0.1 85 / 45%);
+  box-shadow: 0 10px 40px oklch(0 0 0 / 50%), inset 0 1px 0 oklch(1 0 0 / 8%);
+  white-space: nowrap;
+  overflow: hidden;
+  animation: round-banner 2.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
-.score-card-title {
-  font: 600 11px/1 var(--font-sans);
-  letter-spacing: 0.45em;
+/* a sheen that sweeps across it once */
+.round-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, oklch(1 0 0 / 14%) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: sheen 1.1s 0.35s ease-out forwards;
+}
+
+.round-kicker {
+  font: 700 10.5px/1 var(--font-sans);
+  letter-spacing: 0.32em;
+  color: oklch(0.85 0.1 85);
+}
+
+.round-title {
+  font: italic 400 24px/1 var(--font-display);
+  color: white;
+}
+
+@keyframes round-banner {
+  0% { opacity: 0; transform: translate(-50%, -14px) scale(0.96); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  84% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -8px) scale(0.99); }
+}
+
+@keyframes sheen {
+  to { transform: translateX(120%); }
+}
+
+/* --- the name strip for whoever is talking ------------------------------------ */
+
+.lower-third {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 18px 9px 10px;
+  border-radius: 12px;
+  background: oklch(0.1 0.01 270 / 85%);
+  border: 1px solid oklch(1 0 0 / 10%);
+  border-left: 3px solid var(--c);
+  box-shadow: 0 10px 34px oklch(0 0 0 / 45%);
+  animation: lower-third 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.lower-third-name {
+  font: 700 13px/1.1 var(--font-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: white;
+}
+
+.lower-third-tag {
+  margin-top: 2px;
+  font: italic 400 14px/1.1 var(--font-display);
+  color: color-mix(in srgb, var(--c) 70%, white);
+}
+
+@keyframes lower-third {
+  from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --- the scoreboard, with chasing marquee lights round the edge ---------------- */
+
+.scoreboard {
+  width: min(360px, calc(100% - 32px));
+  padding: 5px;
+  border-radius: 20px;
+  /* the bulbs: a ring of dots, sliding round to look like chasing lights */
+  background:
+    radial-gradient(circle, #ffd76a 0 2.2px, transparent 2.8px) 0 0 / 14px 14px,
+    oklch(0.16 0.02 80);
+  animation:
+    scoreboard 3.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards,
+    bulbs 0.6s steps(2) infinite;
+  box-shadow: 0 0 40px oklch(0.85 0.15 85 / 25%), 0 20px 60px oklch(0 0 0 / 55%);
+}
+
+.scoreboard-inner {
+  padding: 16px 16px 18px;
+  border-radius: 16px;
+  background: oklch(0.1 0.01 270 / 96%);
+}
+
+.scoreboard-title {
+  font: 700 11px/1 var(--font-sans);
+  letter-spacing: 0.42em;
   text-align: center;
   color: oklch(0.85 0.1 85);
 }
@@ -73,33 +169,47 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: oklch(1 0 0 / 4%);
   opacity: 0;
   animation: score-row 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
-.score-bar {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 6px;
-  transform: scaleX(0);
-  transform-origin: left;
-  animation: score-bar 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+.score-rank {
+  width: 22px;
+  font: italic 400 22px/1 var(--font-display);
+  text-align: center;
+  color: oklch(1 0 0 / 45%);
 }
 
-@keyframes score-card {
-  0% { opacity: 0; transform: translateY(14px) scale(0.97); }
+.score-rank-first {
+  color: #ffd76a;
+}
+
+.score-points {
+  min-width: 40px;
+  text-align: right;
+  font: 700 18px/1 var(--font-mono);
+  color: white;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes scoreboard {
+  0% { opacity: 0; transform: translateY(16px) scale(0.96); }
   9% { opacity: 1; transform: none; }
   88% { opacity: 1; transform: none; }
   100% { opacity: 0; transform: translateY(-8px); }
 }
 
+@keyframes bulbs {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 7px 7px, 0 0; }
+}
+
 @keyframes score-row {
   from { opacity: 0; transform: translateX(-10px); }
   to { opacity: 1; transform: none; }
-}
-
-@keyframes score-bar {
-  to { transform: scaleX(1); }
 }
 
 /* the final gavel: one bright flash across the room */
@@ -118,10 +228,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .round-banner::after { animation: none; }
+  .scoreboard { animation: scoreboard 3.8s linear forwards; }
   .case-card,
-  .score-card,
   .score-row,
-  .score-bar {
+  .lower-third {
     animation-duration: 0.01s;
     animation-delay: 0s !important;
   }
