@@ -193,3 +193,22 @@ test('says plainly when you are out of credits', async () => {
     /out of OpenRouter credits/
   );
 });
+
+// --- what's shown while text streams in ------------------------------------
+
+import { balanceMarkdown, nameNames } from '../src/lib/text.js';
+
+test('closes bold that has not finished streaming', () => {
+  assert.equal(balanceMarkdown('**No, not'), '**No, not**');
+  assert.equal(balanceMarkdown('**No.** Done'), '**No.** Done');
+  assert.equal(balanceMarkdown('an *idea'), 'an *idea*');
+});
+
+test('bubbles name the model behind each anonymous label', () => {
+  const labels = { 'Response A': 'openai/gpt-x', 'Response B': 'google/gemini-y' };
+  assert.equal(
+    nameNames('Response A hedges, Response B is right.', labels),
+    'gpt-x hedges, gemini-y is right.'
+  );
+  assert.equal(nameNames('no labels here', null), 'no labels here');
+});

@@ -4,16 +4,19 @@ import {
   Environment,
   Lightformer,
   MeshReflectorMaterial,
+  PerformanceMonitor,
   Sparkles,
 } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, Noise } from '@react-three/postprocessing';
 import { easing } from 'maath';
 import * as THREE from 'three';
 import Mech3D from './Mech3D';
+import CourtSet from './CourtSet';
 import { colorFor, vendorOf, shortName } from '../components/brand';
 import './chamber.css';
 
 const CHAIRMAN_SPOT = [0, 1.05, -4.4];
+const CHAIR_SCALE = 1.28;
 const FOV = 34;
 
 const calmByDefault =
@@ -39,6 +42,11 @@ function seatsFor(count, compact) {
     const a = count === 1 ? 0 : -spread + (i / (count - 1)) * spread * 2;
     return [radius * Math.sin(a), 0, -radius * Math.cos(a) + radius * 0.62];
   });
+}
+
+/** Which way a judge faces at rest: towards the viewer, angled in slightly. */
+function restingYaw([x, , z]) {
+  return Math.atan2(x * 0.4 - x, 12 - z);
 }
 
 /** Thin streaks of light rushing up behind the council while it works. */
@@ -129,20 +137,91 @@ function ViewOffset({ x = 0, y = 0 }) {
   return null;
 }
 
-/** Moves the camera with the story: wide while waiting, in close for the verdict. */
-function CameraRig({ phase, focus, seats, council, intro, calm, fit, freeHeight }) {
+/** A spotlight that glides to whoever has the floor. */
+function FloorLight({ target }) {
+  const light = useRef();
+  const aim = useMemo(() => new THREE.Object3D(), []);
+  useFrame((_, dt) => {
+    if (!light.current) return;
+    const [x, y, z] = target || [0, 1.8, -1];
+    easing.damp3(light.current.position, [x * 0.9, 8, z + 3.5], 0.5, dt);
+    easing.damp3(aim.position, [x, y, z], 0.4, dt);
+    easing.damp(light.current, 'intensity', target ? 70 : 0, 0.4, dt);
+  });
+  return (
+    <>
+      <primitive object={aim} />
+      <spotLight ref={light} target={aim} angle={0.28} penumbra={0.75} intensity={0} color="#fff3df" distance={16} decay={1.2} />
+    </>
+  );
+}
+
+/** Crackling energy between two judges going at each other. */
+function Clash({ from, to, color }) {
+  // From chest to chest, swinging out over the floor in front of the bench,
+  // so it never hides behind the speech bubbles above the heads
+  const curve = useMemo(() => {
+    const a = new THREE.Vector3(...from);
+    const b = new THREE.Vector3(...to);
+    const mid = a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 0.35, 1.9));
+    return new THREE.QuadraticBezierCurve3(a, mid, b);
+  }, [from, to]);
+  const outer = useMemo(() => new THREE.TubeGeometry(curve, 64, 0.055, 10, false), [curve]);
+  const inner = useMemo(() => new THREE.TubeGeometry(curve, 64, 0.02, 8, false), [curve]);
+  const glow = useMemo(
+    () => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+    [color]
+  );
+  const core = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+    []
+  );
+  const pulse = useRef();
+  const born = useRef(null);
+
+  useFrame((state, dt) => {
+    const t = state.clock.elapsedTime;
+    if (born.current === null) born.current = t;
+    // fade in, then crackle
+    const life = Math.min(1, (t - born.current) / 0.25);
+    const flicker = 0.6 + Math.sin(t * 37) * 0.2 + Math.sin(t * 23 + 1) * 0.2;
+    easing.damp(glow, 'opacity', life * flicker * 0.9, 0.05, dt);
+    easing.damp(core, 'opacity', life * flicker, 0.05, dt);
+    if (pulse.current) {
+      pulse.current.position.copy(curve.getPoint((t * 1.1) % 1));
+    }
+  });
+
+  return (
+    <group>
+      <mesh geometry={outer} material={glow} />
+      <mesh geometry={inner} material={core} />
+      <mesh ref={pulse} material={core}>
+        <sphereGeometry args={[0.12, 16, 16]} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * Moves the camera with the story. Wide while waiting, drifting towards
+ * whoever has the floor, in close for the verdict. A slow dolly every time,
+ * never a cut, with a smooth shake when a gavel lands hard.
+ */
+function CameraRig({ phase, focus, seats, council, intro, calm, fit, freeHeight, voiceSpot, shake }) {
   const { camera } = useThree();
+  const base = useRef(new THREE.Vector3(0, 2.3, 10.5));
   const look = useRef(new THREE.Vector3(0, 1.8, -1));
   const started = useRef(false);
 
   useEffect(() => {
-    if (intro && !calm && !started.current) {
+    if (started.current) return;
+    if (intro && !calm) {
       // start high above and far back, then fly in
-      camera.position.set(0, 11, 22);
+      base.current.set(0, 11, 24);
       look.current.set(0, 1, -2);
-    } else if (!started.current) {
-      camera.position.set(0, 2.3, 10.5);
     }
+    camera.position.copy(base.current);
     started.current = true;
   }, [camera, intro, calm]);
 
@@ -150,34 +229,48 @@ function CameraRig({ phase, focus, seats, council, intro, calm, fit, freeHeight 
     const t = state.clock.elapsedTime;
     let pos;
     let target;
+    let smooth = 0.8;
 
     const focusIndex = focus ? council.findIndex((c) => c.model === focus) : -1;
 
     if (focusIndex >= 0) {
       const [x, , z] = seats[focusIndex];
-      // close-ups need more room when the chamber only has part of the screen
-      pos = [x * 0.85, 2.3, z + 4.2 + (1 - freeHeight) * 5];
-      target = [x, 1.9, z];
+      pos = [x * 0.85, 2.4, z + 4.4 + (1 - freeHeight) * 5];
+      target = [x, 2, z];
     } else if (phase === 'verdict') {
-      pos = [0, 3.9, 2.4 + (1 - freeHeight) * 6];
-      target = [CHAIRMAN_SPOT[0], 3.6, CHAIRMAN_SPOT[2]];
-    } else if (phase === 'review') {
-      const pan = calm ? 0 : Math.sin(t * 0.22) * 1.2;
-      pos = [pan, 1.7, 10.2 * fit];
-      target = [pan * 0.3, 2.0, -1];
-    } else if (phase === 'opinions') {
-      pos = [calm ? 0 : Math.sin(t * 0.15) * 0.5, 2.2, 10.4 * fit];
-      target = [0, 2.0, -1];
+      pos = [0, 4.1, 2.6 + (1 - freeHeight) * 6];
+      target = [CHAIRMAN_SPOT[0], 3.7, CHAIRMAN_SPOT[2]];
+      smooth = 1;
+    } else if (phase === 'opinions' || phase === 'review') {
+      // drift towards whoever has the floor, without losing the room
+      const vx = voiceSpot ? voiceSpot[0] : 0;
+      const low = phase === 'review';
+      const sway = calm ? 0 : Math.sin(t * 0.18) * 0.4;
+      pos = [vx * 0.32 + sway, low ? 1.8 : 2.3, (low ? 10 : 10.4) * fit];
+      target = [vx * 0.45, 2.1, -1];
+      smooth = 1.2;
     } else {
       const sway = calm ? 0 : Math.sin(t * 0.1) * 1.4;
-      pos = [sway, 2.5 + (fit - 1) * 1.2, 10.6 * fit];
-      target = [0, 2.1, -1.2];
+      pos = [sway, 2.6 + (fit - 1) * 1.2, 10.8 * fit];
+      target = [0, 2.2, -1.2];
     }
 
     // the fly-in is slower than everyday camera moves
-    const smooth = t < 3.5 && intro ? 1.1 : 0.7;
-    easing.damp3(camera.position, pos, smooth, dt);
+    if (intro && t < 3.5) smooth = 1.2;
+    easing.damp3(base.current, pos, smooth, dt);
     easing.damp3(look.current, target, smooth * 0.8, dt);
+
+    camera.position.copy(base.current);
+
+    // a smooth shake that fades out, not random jitter
+    if (shake && !calm) {
+      const age = (performance.now() - shake.at) / 1000;
+      if (age >= 0 && age < 0.55) {
+        const amp = shake.strength * Math.pow(1 - age / 0.55, 2);
+        camera.position.x += amp * (Math.sin(t * 41) * 0.6 + Math.sin(t * 67 + 1.3) * 0.4);
+        camera.position.y += amp * (Math.sin(t * 47 + 0.7) * 0.6 + Math.sin(t * 59 + 2.1) * 0.4);
+      }
+    }
     camera.lookAt(look.current);
   });
 
@@ -185,16 +278,20 @@ function CameraRig({ phase, focus, seats, council, intro, calm, fit, freeHeight 
 }
 
 /**
- * The council chamber. A full-screen 3D stage behind the app.
+ * The courtroom. A full-screen 3D stage behind the app.
  *
  * council: [{ model, state, text, cost, won }]
  * chairman: { model, state, text, cost } or null
  * phase: 'idle' | 'opinions' | 'review' | 'verdict' | 'done'
+ * show: what the director is staging (see useShow)
  */
 export default function Chamber({
   council,
   chairman,
   phase,
+  show,
+  question,
+  labels,
   focus,
   onFocus,
   offset = { x: 0, y: 0 },
@@ -209,40 +306,69 @@ export default function Chamber({
   const calm = calmByDefault;
   const compact = freeAspect < 0.9;
   const seats = useMemo(() => seatsFor(council.length, compact), [council.length, compact]);
+  const yaws = useMemo(() => seats.map(restingYaw), [seats]);
 
-  // How much further back the wide shots must be so the whole council is in
-  // frame, given the space the chamber actually gets. The field of view is
-  // vertical, so width and height are checked separately.
+  // Shrink the render resolution if the device starts struggling, so motion
+  // stays fluid instead of stuttering
+  const maxDpr = lite ? 1.5 : 2;
+  const [dpr, setDpr] = useState(maxDpr);
+
+  // How much further back the wide shots must be so the whole court is in
+  // frame. The field of view is vertical, so width and height are separate.
   const fit = useMemo(() => {
     const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
     const widest = Math.max(...seats.map(([x]) => Math.abs(x)), 0);
-    // the mechs, plus room either side for speech bubbles
     const neededWidth = widest * 2 + (compact ? 2.6 : 4.4);
-    // floor to the top of the chairman's head, plus his bubble
-    const neededHeight = 5.6;
+    const neededHeight = 5.8;
     const byWidth = neededWidth / (2 * tan * Math.max(freeAspect, 0.3));
     const byHeight = neededHeight / (2 * tan * freeHeight);
     return Math.max(1, byWidth / 10.6, byHeight / 10.6);
   }, [seats, compact, freeAspect, freeHeight]);
+
   const working = phase === 'opinions' || phase === 'review' || phase === 'verdict';
-
-  // On narrow screens the judges stand too close for four bubbles, so the
-  // words cut between whoever is speaking, one at a time
-  const [turn, setTurn] = useState(0);
-  useEffect(() => {
-    if (!compact || !working) return;
-    const id = setInterval(() => setTurn((t) => t + 1), 2600);
-    return () => clearInterval(id);
-  }, [compact, working]);
-  const speakers = council.map((j, i) => (j.state === 'speaking' ? i : -1)).filter((i) => i >= 0);
-  const voice = speakers.length ? speakers[turn % speakers.length] : -1;
-
   const chairColor = chairman ? colorFor(chairman.model) : '#8fa7ff';
+  const s = show || {};
+
+  const headOf = (i) => [seats[i][0], 2.35, seats[i][2]];
+  const chairHead = [CHAIRMAN_SPOT[0], CHAIRMAN_SPOT[1] + 2.2 * CHAIR_SCALE, CHAIRMAN_SPOT[2]];
+
+  const voiceIndex = s.voice ? council.findIndex((c) => c.model === s.voice) : -1;
+  const voiceSpot = s.voice === 'chair' ? chairHead : voiceIndex >= 0 ? headOf(voiceIndex) : null;
+
+  // In cross-examination the two sides of an argument turn to face each other
+  const clashFrom = s.clash ? council.findIndex((c) => c.model === s.clash.from) : -1;
+  const clashTo = s.clash ? council.findIndex((c) => c.model === s.clash.to) : -1;
+  const turnFor = (i) => {
+    if (phase !== 'review') return 0;
+    const other = i === clashFrom ? clashTo : i === clashTo ? clashFrom : -1;
+    const [x, , z] = seats[i];
+    const [tx, tz] = other >= 0 ? [seats[other][0], seats[other][2]] : [0, -1];
+    const want = Math.atan2(tx - x, tz - z) - yaws[i];
+    const wrapped = Math.atan2(Math.sin(want), Math.cos(want));
+    return THREE.MathUtils.clamp(wrapped, -0.6, 0.6);
+  };
+
+  // Keep the beam's endpoints stable between renders so it doesn't flicker.
+  // Each end sits at a judge's glowing chest core.
+  const clashEnds = useMemo(() => {
+    if (clashFrom < 0 || clashTo < 0) return null;
+    const chest = (i) => [
+      seats[i][0] + Math.sin(yaws[i]) * 0.4,
+      1.4,
+      seats[i][2] + Math.cos(yaws[i]) * 0.4,
+    ];
+    return [chest(clashFrom), chest(clashTo)];
+  }, [clashFrom, clashTo, seats, yaws]);
+
+  const benchCouncil = useMemo(
+    () => council.map((j) => ({ model: j.model, color: colorFor(j.model), label: shortName(j.model), cost: j.cost })),
+    [council]
+  );
 
   return (
     <Canvas
       className="chamber-canvas"
-      dpr={lite ? [1, 1.5] : [1, 2]}
+      dpr={dpr}
       camera={{ fov: FOV, near: 0.1, far: 120, position: [0, 2.3, 10.5] }}
       gl={{ antialias: !lite, powerPreference: 'high-performance' }}
       onCreated={({ gl }) => {
@@ -252,8 +378,12 @@ export default function Chamber({
       }}
       onPointerMissed={() => onFocus?.(null)}
     >
+      {/* step down once if the device struggles, and stay there: bouncing
+          back up would resize the canvas again and cause a flicker */}
+      <PerformanceMonitor onDecline={() => setDpr(1)} onFallback={() => setDpr(1)} />
+
       <color attach="background" args={['#05060a']} />
-      <fog attach="fog" args={['#05060a', 10.6 * fit + 3, 10.6 * fit + 19]} />
+      <fog attach="fog" args={['#05060a', 10.6 * fit + 4, 10.6 * fit + 22]} />
 
       <ViewOffset x={offset.x} y={offset.y} />
       <CameraRig
@@ -265,25 +395,35 @@ export default function Chamber({
         calm={calm}
         fit={fit}
         freeHeight={freeHeight}
+        voiceSpot={voiceSpot}
+        shake={s.shake}
       />
 
-      {/* soft studio light for the glossy toy-like paint, with no downloads */}
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[3, 8, 6]} intensity={1.2} />
-      <spotLight
-        position={[0, 9, 2]}
-        angle={0.55}
-        penumbra={1}
-        intensity={working ? 40 : 26}
-        color="#dfe8ff"
-      />
+      {/* warm court lighting, plus soft studio light for the glossy paint */}
+      <ambientLight intensity={0.22} />
+      <directionalLight position={[3, 8, 6]} intensity={1.1} color="#ffe9d2" />
+      <spotLight position={[0, 10, 4]} angle={0.6} penumbra={1} intensity={working ? 34 : 24} color="#ffe2bd" />
+      <FloorLight target={voiceSpot} />
       <Environment resolution={128} frames={1}>
-        <Lightformer form="rect" intensity={3} position={[0, 5, 4]} scale={[8, 2, 1]} />
-        <Lightformer form="rect" intensity={1.5} position={[-6, 2, 0]} rotation-y={Math.PI / 2} scale={[6, 2, 1]} color="#9db4ff" />
-        <Lightformer form="rect" intensity={1.5} position={[6, 2, 0]} rotation-y={-Math.PI / 2} scale={[6, 2, 1]} color="#ffb59d" />
+        <Lightformer form="rect" intensity={3} position={[0, 5, 4]} scale={[8, 2, 1]} color="#fff1dc" />
+        <Lightformer form="rect" intensity={1.4} position={[-6, 2, 0]} rotation-y={Math.PI / 2} scale={[6, 2, 1]} color="#9db4ff" />
+        <Lightformer form="rect" intensity={1.4} position={[6, 2, 0]} rotation-y={-Math.PI / 2} scale={[6, 2, 1]} color="#ffb59d" />
       </Environment>
 
       <Suspense fallback={null}>
+        <CourtSet
+          seats={seats}
+          yaws={yaws}
+          council={benchCouncil}
+          compact={compact}
+          chairSpot={CHAIRMAN_SPOT}
+          chairScale={CHAIR_SCALE}
+          chairColor={chairColor}
+          chairLabel={chairman ? `Chairman · ${shortName(chairman.model)}` : 'Chairman'}
+          chairCost={chairman?.cost || 0}
+          lite={lite}
+        />
+
         {/* the council */}
         {council.map((judge, i) => (
           <Mech3D
@@ -291,57 +431,51 @@ export default function Chamber({
             model={judge.model}
             color={colorFor(judge.model)}
             vendor={vendorOf(judge.model)}
-            label={shortName(judge.model)}
             state={judge.state}
             text={judge.text}
-            cost={judge.cost}
             won={judge.won}
             variant={i}
             position={seats[i]}
-            // during the blind review they turn towards each other; in the
-            // tight formation only partly, so you don't end up seeing backs
-            lookAt={
-              phase === 'review'
-                ? compact
-                  ? [0, 4]
-                  : [0, -0.5]
-                : [seats[i][0] * 0.4, 12]
-            }
+            faceYaw={yaws[i]}
+            turn={turnFor(i)}
             phaseOffset={i * 1.3}
             onSelect={onFocus}
             showLabels={!lite || phase !== 'idle'}
-            showWords={!compact || i === voice}
+            // narrow screens: only whoever has the floor speaks aloud
+            showWords={!compact || judge.model === s.voice}
+            isVoice={judge.model === s.voice}
+            slamAt={s.slams?.[judge.model] || 0}
+            burst={s.bursts?.[judge.model] || null}
+            labels={labels}
           />
         ))}
 
-        {/* the chairman, raised up at the back */}
+        {/* the chairman, raised up behind the high bench */}
         {chairman && (
-          <>
-            <mesh position={[CHAIRMAN_SPOT[0], CHAIRMAN_SPOT[1] / 2, CHAIRMAN_SPOT[2]]}>
-              <cylinderGeometry args={[1.05, 1.2, CHAIRMAN_SPOT[1], 48]} />
-              <meshStandardMaterial color="#0d0f15" roughness={0.35} metalness={0.7} />
-            </mesh>
-            <Mech3D
-              model={chairman.model}
-              color={chairColor}
-              vendor={vendorOf(chairman.model)}
-              label={`Chairman · ${shortName(chairman.model)}`}
-              state={chairman.state}
-              text={chairman.text}
-              cost={chairman.cost}
-              variant={1}
-              position={CHAIRMAN_SPOT}
-              lookAt={[0, 12]}
-              scale={1.28}
-              phaseOffset={0.7}
-              onSelect={onFocus}
-            />
-          </>
+          <Mech3D
+            model={chairman.model}
+            color={chairColor}
+            vendor={vendorOf(chairman.model)}
+            state={chairman.state}
+            text={chairman.text}
+            variant={1}
+            position={CHAIRMAN_SPOT}
+            faceYaw={0}
+            scale={CHAIR_SCALE}
+            phaseOffset={0.7}
+            onSelect={onFocus}
+            isVoice={s.voice === 'chair'}
+            slamAt={s.slams?.chair || 0}
+          />
+        )}
+
+        {s.clash && clashEnds && (
+          <Clash key={s.clash.at} from={clashEnds[0]} to={clashEnds[1]} color={colorFor(s.clash.from)} />
         )}
 
         <Halo color={chairColor} active={phase === 'verdict' || phase === 'done'} />
-        <Sparkles count={lite ? 30 : 70} scale={[16, 8, 10]} position={[0, 3, -2]} size={1.6} speed={0.25} opacity={0.5} color="#c9d6ff" />
-        {!calm && <Streaks active={working} count={lite ? 24 : 46} />}
+        <Sparkles count={lite ? 30 : 70} scale={[16, 8, 10]} position={[0, 3, -2]} size={1.6} speed={0.25} opacity={0.5} color="#ffe6c4" />
+        {!calm && <Streaks active={phase === 'review'} count={lite ? 20 : 40} />}
 
         {/* a dark glossy floor that reflects the glowing heads */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
@@ -350,27 +484,22 @@ export default function Chamber({
             blur={[300, 80]}
             resolution={lite ? 256 : 768}
             mixBlur={1}
-            mixStrength={lite ? 18 : 32}
+            mixStrength={lite ? 18 : 30}
             roughness={0.9}
             depthScale={1.1}
             minDepthThreshold={0.4}
             maxDepthThreshold={1.4}
             color="#07080c"
             metalness={0.6}
-            mirror={0.55}
+            mirror={0.5}
           />
         </mesh>
       </Suspense>
 
       <EffectComposer multisampling={lite ? 0 : 4} disableNormalPass>
-        <Bloom
-          mipmapBlur
-          luminanceThreshold={0.85}
-          luminanceSmoothing={0.2}
-          intensity={lite ? 0.8 : 1.15}
-        />
+        <Bloom mipmapBlur luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={lite ? 0.8 : 1.1} />
         <Vignette eskil={false} offset={0.18} darkness={0.75} />
-        {!lite && <Noise opacity={0.035} />}
+        {!lite && <Noise opacity={0.03} />}
       </EffectComposer>
     </Canvas>
   );

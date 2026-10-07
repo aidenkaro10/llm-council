@@ -1,7 +1,7 @@
 # LLM Council
 
-Ask once. Four AI models answer, rank each other blind, and you get one short
-verdict.
+Ask once. Four AI models take your question to court, argue it out, rank each
+other blind, and you get one short verdict.
 
 **[Open it →](https://aidenkaro10.github.io/llm-council/)** Bring your own
 [OpenRouter key](https://openrouter.ai/settings/keys). Nothing to install.
@@ -18,11 +18,23 @@ verdict.
    play favourites.
 3. A chairman writes one answer from all of it.
 
-While they deliberate, you watch it happen: each model is a 3D mech with its
-maker's mark for a face, standing in a dark chamber. They think, argue in
-speech bubbles, turn to face each other for the blind review, and the camera
-pushes in on the chairman as the verdict is written. The judge ranked best gets
-a crown.
+While they deliberate, it's a show. Each model is a 3D mech with its maker's
+mark for a face, standing at the bench of a courtroom.
+
+1. **Order in the court.** The chairman bangs the gavel and your question
+   comes up as the case.
+2. **Opening arguments.** Judges take the floor in turn under a spotlight,
+   chattering in robot bleeps.
+3. **Cross-examination.** They turn on each other. Gavels slam, energy arcs
+   between whoever is arguing, and OBJECTION! and HEARSAY! fly. Their words
+   name the judge they're attacking.
+4. **The votes are in.** A scorecard shows the blind-review ranking and the
+   winner is crowned.
+5. **The verdict.** The camera pushes in on the chairman as it's written, then
+   one last gavel.
+
+Sound is off until you turn it on with the speaker button. It's all generated
+in the browser, no audio files.
 
 Then you see the verdict. Everything else, every judge's answer and every
 review, is one click away under **How they got there**.
@@ -48,10 +60,12 @@ your repo name.
 
 ## Tech
 
-React and Vite, with the chamber in three.js through React Three Fiber. The
-mechs are built from code, not model files, and the 3D loads separately so the
-app is usable before it arrives. It respects reduced-motion settings and
-switches to a tighter, lighter scene on phones.
+React and Vite, with the courtroom in three.js through React Three Fiber. The
+mechs and the set are built from code, not model files, and the 3D loads
+separately so the app is usable before it arrives. Sound is synthesised with
+the Web Audio API. Animation runs in the render loop with damping rather than
+through React, quality steps down automatically on slow devices, and it
+respects reduced-motion settings.
 
 ## Notes
 

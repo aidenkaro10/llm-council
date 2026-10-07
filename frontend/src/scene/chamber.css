@@ -101,3 +101,84 @@
 @keyframes chamber-in {
   from { opacity: 0; }
 }
+
+/* --- the show: bubbles, outbursts, the case on the lectern ---------------- */
+
+.bubble-slot3d {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.bubble3d {
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease;
+}
+
+/* whoever has the floor gets a bigger, brighter bubble */
+.bubble3d-voice {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px var(--c), 0 0 34px color-mix(in srgb, var(--c) 70%, transparent);
+}
+
+/* OBJECTION!: a jagged comic-book burst that slams in and fades */
+.burst3d {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  padding: 10px 18px 12px;
+  background: var(--c);
+  color: #0a0a0a;
+  font: 900 15px/1 var(--font-sans);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  clip-path: polygon(
+    0% 18%, 9% 10%, 6% 0%, 22% 8%, 35% 0%, 46% 9%, 60% 1%, 70% 10%, 86% 2%, 90% 14%,
+    100% 12%, 94% 34%, 100% 52%, 92% 64%, 99% 86%, 82% 82%, 74% 100%, 60% 88%, 45% 100%,
+    36% 86%, 20% 98%, 16% 82%, 1% 88%, 7% 66%, 0% 50%, 6% 34%
+  );
+  filter: drop-shadow(0 0 18px var(--c));
+  transform-origin: 50% 100%;
+  animation: burst-in 1.3s cubic-bezier(0.2, 0.9, 0.25, 1.2) forwards;
+}
+
+@keyframes burst-in {
+  0% { transform: translateX(-50%) scale(0.2) rotate(-14deg); opacity: 0; }
+  14% { transform: translateX(-50%) scale(1.18) rotate(-5deg); opacity: 1; }
+  24% { transform: translateX(-50%) scale(0.98) rotate(-7deg); }
+  75% { transform: translateX(-50%) scale(1) rotate(-7deg); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-14px) scale(1.04) rotate(-7deg); opacity: 0; }
+}
+
+/* the case, on a card above the lectern */
+.case3d {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 240px;
+  width: max-content;
+  padding: 9px 13px;
+  border-radius: 10px;
+  background: oklch(0.12 0.01 270 / 75%);
+  border: 1px solid oklch(0.85 0.1 85 / 40%);
+  backdrop-filter: blur(8px);
+  color: white;
+  text-align: center;
+  pointer-events: none;
+  animation: bubble3d-in 0.6s ease-out;
+}
+.case3d small {
+  font: 600 9px/1 var(--font-sans);
+  letter-spacing: 0.35em;
+  color: oklch(0.85 0.1 85);
+}
+.case3d span {
+  font: 400 16px/1.2 var(--font-display);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burst3d { animation: none; transform: translateX(-50%) rotate(-7deg); }
+  .case3d { animation: none; }
+}

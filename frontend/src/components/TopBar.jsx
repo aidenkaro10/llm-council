@@ -1,8 +1,8 @@
-import { Menu, Plus, Settings as SettingsIcon } from 'lucide-react';
+import { Menu, Plus, Settings as SettingsIcon, Volume2, VolumeX } from 'lucide-react';
 import { money } from '../lib/cost';
 
 /** Two glass pills floating over the chamber: the menu on the left, tools on the right. */
-export default function TopBar({ stats, onOpenMenu, onNewConversation, onOpenSettings }) {
+export default function TopBar({ stats, onOpenMenu, onNewConversation, onOpenSettings, soundOn, onToggleSound }) {
   const pill = 'glass flex items-center gap-1 rounded-full p-1';
   const icon =
     'flex h-9 w-9 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white cursor-pointer';
@@ -25,6 +25,14 @@ export default function TopBar({ stats, onOpenMenu, onNewConversation, onOpenSet
             {money(stats.total_cost)}
           </span>
         )}
+        <button
+          className={icon}
+          onClick={onToggleSound}
+          title={soundOn ? 'Sound off' : 'Sound on'}
+          aria-pressed={soundOn}
+        >
+          {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 opacity-60" />}
+        </button>
         <button className={icon} onClick={onNewConversation} title="New conversation">
           <Plus className="h-4 w-4" />
         </button>

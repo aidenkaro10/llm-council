@@ -1,0 +1,128 @@
+/* Title cards for the big moments. Only opacity and transform animate, so the
+   browser can do it all on the GPU and it stays smooth. */
+
+.case-card {
+  width: max-content;
+  max-width: min(620px, 92%);
+  padding: 34px 64px 38px;
+  /* a soft dark pool behind the words so they read over the courtroom */
+  background: radial-gradient(
+    ellipse at center,
+    oklch(0.07 0.01 270 / 88%) 0%,
+    oklch(0.07 0.01 270 / 62%) 45%,
+    oklch(0.07 0.01 270 / 0%) 72%
+  );
+  text-shadow: 0 2px 30px oklch(0 0 0 / 80%);
+}
+
+/* the animation lives on the children, because the card itself is positioned
+   with a transform */
+.case-card > * {
+  animation: case-card 2.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.case-card {
+  animation: case-pool 2.7s ease forwards;
+}
+
+@keyframes case-pool {
+  0%, 100% { opacity: 0; }
+  12%, 82% { opacity: 1; }
+}
+
+.case-card-kicker {
+  font: 600 10px/1 var(--font-sans);
+  letter-spacing: 0.5em;
+  color: oklch(0.85 0.1 85);
+}
+
+.case-card-label {
+  margin-top: 14px;
+  font: 600 11px/1 var(--font-sans);
+  letter-spacing: 0.42em;
+  color: oklch(1 0 0 / 55%);
+}
+
+.case-card-question {
+  margin-top: 10px;
+  font: 400 clamp(28px, 4vw, 52px)/1.04 var(--font-display);
+  color: white;
+}
+
+@keyframes case-card {
+  0% { opacity: 0; transform: translateY(16px) scale(0.98); filter: blur(10px); }
+  14% { opacity: 1; transform: none; filter: blur(0); }
+  80% { opacity: 1; transform: none; filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-10px) scale(1.01); filter: blur(6px); }
+}
+
+.score-card {
+  width: min(380px, calc(100% - 32px));
+  padding: 18px 18px 20px;
+  border-radius: 20px;
+  animation: score-card 3.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+.score-card-title {
+  font: 600 11px/1 var(--font-sans);
+  letter-spacing: 0.45em;
+  text-align: center;
+  color: oklch(0.85 0.1 85);
+}
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  animation: score-row 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.score-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 6px;
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: score-bar 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes score-card {
+  0% { opacity: 0; transform: translateY(14px) scale(0.97); }
+  9% { opacity: 1; transform: none; }
+  88% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes score-row {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes score-bar {
+  to { transform: scaleX(1); }
+}
+
+/* the final gavel: one bright flash across the room */
+.gavel-flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, oklch(1 0 0 / 70%), oklch(1 0 0 / 0%) 70%);
+  opacity: 0;
+  animation: gavel-flash 0.6s ease-out forwards;
+}
+
+@keyframes gavel-flash {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .case-card,
+  .score-card,
+  .score-row,
+  .score-bar {
+    animation-duration: 0.01s;
+    animation-delay: 0s !important;
+  }
+}

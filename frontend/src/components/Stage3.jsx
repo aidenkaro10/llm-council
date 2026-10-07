@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown';
+import { balanceMarkdown } from '../lib/text';
 
 /** The verdict. Set large, like a statement, because it is the answer. */
 export default function Stage3({ finalResponse, streaming }) {
@@ -33,7 +34,7 @@ export default function Stage3({ finalResponse, streaming }) {
     <div className="brackets fade-up rounded-2xl px-5 py-5">
       <div className="mb-3 text-[10px] font-semibold tracking-[0.4em] text-white/40">VERDICT</div>
       <div className="verdict prose-council text-white">
-        <ReactMarkdown>{streaming ? finalResponse.text + ' ▍' : finalResponse.text}</ReactMarkdown>
+        <ReactMarkdown>{streaming ? balanceMarkdown(finalResponse.text) + ' ▍' : finalResponse.text}</ReactMarkdown>
       </div>
     </div>
   );

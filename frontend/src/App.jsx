@@ -4,6 +4,10 @@ import ChatInterface from './components/ChatInterface';
 import Settings from './components/Settings';
 import TopBar from './components/TopBar';
 import IntroLoader from './components/IntroLoader';
+import ShowOverlay from './components/ShowOverlay';
+import SoundNudge from './components/SoundNudge';
+import useShow from './scene/useShow';
+import { setSoundEnabled } from './scene/sound';
 import * as storage from './lib/storage';
 import { listModels } from './lib/openrouter';
 import { runCouncil, generateTitle } from './lib/council';
@@ -44,9 +48,14 @@ function useViewport() {
 function sceneFrom(conversation, settings) {
   const last = [...(conversation?.messages || [])].reverse().find((m) => m.role === 'assistant');
 
+  const messages = conversation?.messages || [];
+  const lastQuestion = [...messages].reverse().find((m) => m.role === 'user')?.content || null;
+
   if (!last?.stage1) {
     return {
       phase: 'idle',
+      question: lastQuestion,
+      rankings: [],
       council: settings.councilModels.map((model) => ({ model, state: 'waiting' })),
       chairman: { model: settings.chairmanModel, state: 'waiting' },
     };
@@ -74,7 +83,7 @@ function sceneFrom(conversation, settings) {
       state,
       text,
       cost: (entry.cost || 0) + (review?.cost || 0),
-      won: phase === 'done' && entry.model === winner,
+      won: (phase === 'verdict' || phase === 'done') && entry.model === winner,
     };
   });
 
@@ -86,7 +95,15 @@ function sceneFrom(conversation, settings) {
     cost: v?.cost || 0,
   };
 
-  return { phase, council, chairman };
+  return {
+    phase,
+    council,
+    chairman,
+    question: lastQuestion,
+    rankings: last.metadata?.aggregate_rankings || [],
+    // "Response A" -> the real model, so the arguing on screen names names
+    labels: last.metadata?.label_to_model || null,
+  };
 }
 
 export default function App() {
@@ -100,6 +117,27 @@ export default function App() {
   const [stats, setStats] = useState(storage.getStats());
   const [models, setModels] = useState([]);
   const [focus, setFocus] = useState(null);
+
+  // Sound is off until someone turns it on. The choice is remembered.
+  const [soundOn, setSoundOn] = useState(() => {
+    try {
+      return localStorage.getItem('llmcouncil.sound') === 'on';
+    } catch {
+      return false;
+    }
+  });
+  const [nudge, setNudge] = useState(false);
+
+  const toggleSound = useCallback((on) => {
+    setSoundOn(on);
+    // browsers only allow audio to start from a click, which this is
+    setSoundEnabled(on);
+    try {
+      localStorage.setItem('llmcouncil.sound', on ? 'on' : 'off');
+    } catch {
+      // nothing to do
+    }
+  }, []);
 
   const [introPlaying, setIntroPlaying] = useState(shouldPlayIntro);
   const [chamberReady, setChamberReady] = useState(false);
@@ -126,6 +164,18 @@ export default function App() {
   }, []);
 
   const scene = useMemo(() => sceneFrom(conversation, settings), [conversation, settings]);
+  const show = useShow(scene, scene.question, currentId);
+
+  useEffect(() => {
+    if (!soundOn) return;
+    const arm = () => setSoundEnabled(true);
+    window.addEventListener('pointerdown', arm, { once: true });
+    window.addEventListener('keydown', arm, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', arm);
+      window.removeEventListener('keydown', arm);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A new stage pulls the camera back from whoever you clicked on
   useEffect(() => setFocus(null), [scene.phase]);
@@ -295,6 +345,17 @@ export default function App() {
 
     setIsLoading(true);
 
+    if (!soundOn) {
+      try {
+        if (!localStorage.getItem('llmcouncil.soundNudge')) {
+          localStorage.setItem('llmcouncil.soundNudge', '1');
+          setNudge(true);
+        }
+      } catch {
+        // nothing to do
+      }
+    }
+
     const withUser = {
       ...current,
       messages: [
@@ -374,6 +435,9 @@ export default function App() {
           council={scene.council}
           chairman={scene.chairman}
           phase={scene.phase}
+          show={show}
+          question={scene.question}
+          labels={scene.labels}
           focus={focus}
           onFocus={setFocus}
           offset={offset}
@@ -385,8 +449,12 @@ export default function App() {
         />
       </Suspense>
 
+      <ShowOverlay show={show} wide={wide} />
+
       <TopBar
         stats={stats}
+        soundOn={soundOn}
+        onToggleSound={() => toggleSound(!soundOn)}
         onOpenMenu={() => setDrawerOpen(true)}
         onNewConversation={handleNewConversation}
         onOpenSettings={() => setShowSettings(true)}
@@ -417,6 +485,16 @@ export default function App() {
           models={models}
           onClose={() => setShowSettings(false)}
           onSaved={setSettings}
+        />
+      )}
+
+      {nudge && !soundOn && (
+        <SoundNudge
+          onEnable={() => {
+            toggleSound(true);
+            setNudge(false);
+          }}
+          onDismiss={() => setNudge(false)}
         />
       )}
 

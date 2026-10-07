@@ -14,8 +14,8 @@ const STARTERS = [
 ];
 
 const STAGE_LABELS = {
-  opinions: 'Hearing the question',
-  review: 'Judges reviewing each other, blind',
+  opinions: 'Opening arguments',
+  review: 'Cross-examination, blind',
   verdict: 'The chairman is deciding',
 };
 

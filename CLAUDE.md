@@ -19,9 +19,16 @@ frontend/
     brand.js        maker colours, shared by the 3D scene and the strip
     TopBar / Sidebar / IntroLoader  the glass chrome around the scene
   src/scene/
-    Chamber.jsx     the full-screen three.js stage: lights, floor, camera rig
-    Mech3D.jsx      one mech built from primitives, animated by state
-    marks.js        maker marks as SVG; feeds 2D badges and 3D head textures
+    Chamber.jsx     the full-screen three.js stage: lights, floor, camera rig,
+                    spotlight on the speaker, energy beams
+    CourtSet.jsx    bench, high bench, columns, seal, bar, aisle, lectern
+    Mech3D.jsx      one mech behind the bench, gavel slams, outbursts
+    useShow.js      the director: who has the floor, slams, outbursts,
+                    case card, scorecard, finale; cues the sound
+    sound.js        Web Audio synth: gavel, objection, chatter, zap, fanfare,
+                    ambient hum. Off by default
+    marks.js / textures.js  SVG marks and the seal, turned into textures
+  src/components/ShowOverlay.jsx  title cards over the scene, never the panel
     ui.jsx          shared Button, Card, Panel, ModelTabs (Tailwind)
     Stage1/2/3.jsx  the full text under the courtroom
     Settings.jsx    API key and judge picker
@@ -43,6 +50,21 @@ deliberation folds into one line (`CouncilStrip`) with "How they got there".
 Don't add captions, hints or explainer text to the main view. The chairman
 prompt asks for a short, direct answer that never mentions the council; keep it
 that way.
+
+## The show
+
+Everything in `useShow.js` reacts to real progress and must never delay the
+answer. Beats: case called (3 chair taps) on entering opinions; the floor
+rotates every 3.2s between speaking judges; random slams, and outbursts during
+review; scorecard + crown + fanfare on review -> verdict; big slam + flash on
+verdict -> done. Sounds fire on the gavel's impact (290ms after a slam starts),
+not on the click. The reset for a newly opened conversation must stay declared
+BEFORE the phase effect, because asking from the empty screen does both in one
+render.
+
+Smoothness rules: animate in `useFrame` with `maath` damping, never with React
+state; `Mech3D` is memoised, so give it numbers and stable objects, not fresh
+arrays; title cards only animate opacity, transform and filter.
 
 ## Things that will bite you
 

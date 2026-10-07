@@ -48,7 +48,9 @@ export default function IntroLoader({ ready, onDone }) {
       <div className="mt-8 h-px w-48 overflow-hidden bg-white/10">
         <div className="h-full bg-white/70 transition-[width] duration-150" style={{ width: `${progress}%` }} />
       </div>
-      <div className="mt-4 text-[11px] tracking-[0.25em] text-white/35">CONVENING</div>
+      <div className="mt-4 text-[11px] tracking-[0.35em] text-white/40 transition-colors duration-500" style={{ color: progress >= 100 ? 'oklch(0.85 0.1 85)' : undefined }}>
+        {progress >= 100 ? 'ALL RISE' : 'CONVENING'}
+      </div>
     </div>
   );
 }
