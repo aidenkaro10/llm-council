@@ -103,53 +103,61 @@
   to { transform: translateX(120%); }
 }
 
-/* --- the name strip for whoever is talking ------------------------------------ */
+/* --- captions, like a broadcast ------------------------------------------------ */
 
-.lower-third {
+.caption {
+  transform: translateX(-50%);
+  padding: 12px 18px 14px;
+  border-radius: 14px;
+  background: oklch(0.09 0.008 60 / 84%);
+  border: 1px solid oklch(1 0 0 / 9%);
+  box-shadow: 0 14px 40px oklch(0 0 0 / 45%);
+  backdrop-filter: blur(6px);
+  animation: caption-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.caption-name {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 9px 18px 9px 10px;
-  border-radius: 12px;
-  background: oklch(0.1 0.01 270 / 85%);
-  border: 1px solid oklch(1 0 0 / 10%);
-  border-left: 3px solid var(--c);
-  box-shadow: 0 10px 34px oklch(0 0 0 / 45%);
-  animation: lower-third 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.lower-third-name {
-  font: 700 13px/1.1 var(--font-sans);
-  letter-spacing: 0.06em;
+  gap: 8px;
+  margin-bottom: 6px;
+  font: 700 11px/1 var(--font-sans);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: color-mix(in srgb, var(--c) 55%, white);
+}
+
+.caption-name em {
+  font: italic 400 13px/1 var(--font-display);
+  letter-spacing: 0;
+  text-transform: none;
+  color: oklch(1 0 0 / 50%);
+}
+
+.caption-text {
+  font: 500 17px/1.4 var(--font-sans);
   color: white;
+  text-wrap: balance;
 }
 
-.lower-third-tag {
-  margin-top: 2px;
-  font: italic 400 14px/1.1 var(--font-display);
-  color: color-mix(in srgb, var(--c) 70%, white);
+.caption-text-small {
+  font-size: 14px;
 }
 
-@keyframes lower-third {
-  from { opacity: 0; transform: translateX(-18px); }
-  to { opacity: 1; transform: none; }
+@keyframes caption-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 /* --- the scoreboard, with chasing marquee lights round the edge ---------------- */
 
 .scoreboard {
   width: min(360px, calc(100% - 32px));
-  padding: 5px;
-  border-radius: 20px;
-  /* the bulbs: a ring of dots, sliding round to look like chasing lights */
-  background:
-    radial-gradient(circle, #ffd76a 0 2.2px, transparent 2.8px) 0 0 / 14px 14px,
-    oklch(0.16 0.02 80);
-  animation:
-    scoreboard 3.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards,
-    bulbs 0.6s steps(2) infinite;
-  box-shadow: 0 0 40px oklch(0.85 0.15 85 / 25%), 0 20px 60px oklch(0 0 0 / 55%);
+  padding: 1px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, oklch(0.85 0.1 85 / 60%), oklch(0.85 0.1 85 / 10%));
+  animation: scoreboard 4.2s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  box-shadow: 0 20px 60px oklch(0 0 0 / 55%);
 }
 
 .scoreboard-inner {
@@ -163,6 +171,13 @@
   letter-spacing: 0.42em;
   text-align: center;
   color: oklch(0.85 0.1 85);
+}
+
+.scoreboard-sub {
+  margin-top: 6px;
+  font: italic 400 13px/1 var(--font-display);
+  text-align: center;
+  color: oklch(1 0 0 / 45%);
 }
 
 .score-row {
@@ -202,11 +217,6 @@
   100% { opacity: 0; transform: translateY(-8px); }
 }
 
-@keyframes bulbs {
-  from { background-position: 0 0, 0 0; }
-  to { background-position: 7px 7px, 0 0; }
-}
-
 @keyframes score-row {
   from { opacity: 0; transform: translateX(-10px); }
   to { opacity: 1; transform: none; }
@@ -229,10 +239,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .round-banner::after { animation: none; }
-  .scoreboard { animation: scoreboard 3.8s linear forwards; }
+  .scoreboard { animation: scoreboard 4.2s linear forwards; }
   .case-card,
   .score-row,
-  .lower-third {
+  .caption {
     animation-duration: 0.01s;
     animation-delay: 0s !important;
   }

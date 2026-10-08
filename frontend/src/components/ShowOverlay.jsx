@@ -64,7 +64,7 @@ export default function ShowOverlay({ show, wide, chairModel }) {
     >
       {caseCard && (
         // high up, over the back wall, so it doesn't sit on the judges
-        <div key={caseCard.at} className="case-card absolute top-[13%] left-1/2 -translate-x-1/2 text-center">
+        <div key={`case-${caseCard.at}`} className="case-card absolute top-[13%] left-1/2 -translate-x-1/2 text-center">
           <div className="case-card-kicker">ORDER IN THE COURT</div>
           <div className="case-card-label">THE CASE</div>
           <div className="case-card-question">
@@ -74,34 +74,34 @@ export default function ShowOverlay({ show, wide, chairModel }) {
       )}
 
       {round && !caseCard && (
-        <div key={round.at} className="round-banner absolute left-1/2" style={{ top: wide ? 84 : 70 }}>
+        <div key={`round-${round.at}`} className="round-banner absolute left-1/2" style={{ top: wide ? 84 : 70 }}>
           <span className="round-kicker">{round.kicker}</span>
           <span className="round-title">{round.title}</span>
         </div>
       )}
 
-      {speakerModel && wide && (
-        // the name strip, like a TV lower third
+      {speaking && lines[speaking] && (
+        // captions, like a broadcast: who's speaking, and what they said
         <div
-          key={speaking}
-          className="lower-third absolute bottom-8 left-8"
+          key={`line-${lines[speaking].at}`}
+          className={cn('caption absolute left-1/2', wide ? 'bottom-8 w-[min(680px,88%)]' : 'bottom-3 w-[94%]')}
           style={{ '--c': colorFor(speakerModel) }}
         >
-          <Badge model={speakerModel} size={30} />
-          <div className="min-w-0">
-            <div className="lower-third-name">{shortName(speakerModel)}</div>
-            <div className="lower-third-tag">
-              {speaking === 'chair' ? 'The Chairman' : personaFor(speakerModel).nickname}
-            </div>
+          <div className="caption-name">
+            <Badge model={speakerModel} size={wide ? 22 : 18} />
+            <span>{speaking === 'chair' ? 'The Judge' : shortName(speakerModel)}</span>
+            {speaking !== 'chair' && <em>{personaFor(speakerModel).nickname}</em>}
           </div>
+          <div className={cn('caption-text', !wide && 'caption-text-small')}>{lines[speaking].text}</div>
         </div>
       )}
 
       {scoreCard && n > 0 && (
         // in the corner, so it never covers the chairman as the camera moves in
-        <div key={scoreCard.at} className="scoreboard absolute right-4 bottom-4 md:right-8 md:bottom-8">
+        <div key={`score-${scoreCard.at}`} className="scoreboard absolute right-4 bottom-4 md:right-8 md:bottom-8">
           <div className="scoreboard-inner">
-            <div className="scoreboard-title">THE VOTES ARE IN</div>
+            <div className="scoreboard-title">THE VOTE</div>
+            <div className="scoreboard-sub">Each counsel ranked the others, blind</div>
             <ol className="mt-3 space-y-1.5">
               {ranks.map((row, i) => (
                 <li key={row.model} className="score-row" style={{ animationDelay: `${0.25 + i * 0.14}s` }}>
@@ -123,7 +123,7 @@ export default function ShowOverlay({ show, wide, chairModel }) {
 
       {flashAt > 0 && !reducedMotion && (
         <div
-          key={flashAt}
+          key={`flash-${flashAt}`}
           className="gavel-flash"
           style={{ animationDelay: `${Math.max(0, flashAt - performance.now())}ms` }}
         />

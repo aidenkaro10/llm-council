@@ -5,7 +5,7 @@ export default function SoundNudge({ onEnable, onDismiss }) {
   return (
     <div className="fade-up fixed right-4 bottom-4 z-40 md:top-[76px] md:bottom-auto">
       <div className="glass flex items-center gap-3 rounded-2xl py-2 pr-2 pl-4">
-        <span className="text-[13px] text-white/85">The court has sound.</span>
+        <span className="text-[13px] text-white/85">The cast talks. Turn on sound?</span>
         <button
           onClick={onEnable}
           className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[12.5px] font-medium text-black transition hover:bg-white/90 cursor-pointer"

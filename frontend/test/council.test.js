@@ -249,6 +249,11 @@ test('garbage in, empty script out', () => {
   assert.deepEqual(parseScript('', CAST), []);
 });
 
+test('the judge can have lines too', () => {
+  const reply = '{"lines":[{"who":"judge","say":"Counsel, get to the point."}]}';
+  assert.equal(parseScript(reply, CAST)[0].who, 'chair');
+});
+
 test('the writer is given what each judge really said', () => {
   const prompt = buildScriptPrompt('Is cereal soup?', [
     { model: 'openai/gpt-x', text: 'No, cereal is not soup.' },

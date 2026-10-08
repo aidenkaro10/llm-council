@@ -16,33 +16,37 @@ export const EMOTIONS = ['smug', 'angry', 'shocked', 'happy', 'annoyed', 'laughi
 export const ACTIONS = ['point', 'slam', 'facepalm', 'shrug', 'laugh', 'objection', 'none'];
 export const CROWD = ['laugh', 'ooh', 'gasp', 'applause', 'none'];
 
-const MAX_LINE = 110;
+const MAX_LINE = 130;
 
 export function buildScriptPrompt(question, answers) {
   const cast = answers
     .map((a) => {
       const p = personaFor(a.model);
       const said = (a.text || '').replace(/\s+/g, ' ').slice(0, 550);
-      return `- ${a.model} plays "${p.nickname}": ${p.trait}.\n  What they actually answered: "${said}"`;
+      return `- ${a.model} plays "${p.nickname}": ${p.trait}.\n  Their actual position: "${said}"`;
     })
     .join('\n');
 
-  return `You write a short, funny sitcom scene. Several AI judges just answered the same question and are about to argue about who got it right. Turn their real disagreement into a quick comedic exchange.
+  return `You are writing a short scene for a courtroom comedy, in the spirit of Night Court. Several AI lawyers have each answered the same question and now argue it out in front of the judge. The lines will be spoken out loud by voice actors, with captions.
 
-The question: "${question}"
+The question before the court: "${question}"
 
-The cast (keep everyone in character):
+Counsel (keep everyone in character):
 ${cast}
 
-Write 8 to 10 lines of dialogue.
-- Every joke comes from what they really said. The disagreement is the comedy.
-- Short and punchy: every line under 85 characters.
-- Playful roasting only. Nothing mean-spirited, nothing offensive.
-- Mix it up: comebacks, interruptions, someone switching sides, a callback near the end.
-- Nobody announces the final verdict; the chairman does that later.
+The judge is "judge": dry, tired, unimpressed, keeps order.
+
+Write 8 to 10 lines.
+- Write how people actually talk in a courtroom: "Your Honor", short spoken sentences, natural rhythm. It must sound right read aloud.
+- Each line responds directly to the line before it. Build an argument, don't just trade one-liners.
+- The disagreement comes from what each lawyer really argued. Use their actual points.
+- Funny through character and timing, not internet jokes. No emoji, hashtags, slang or memes.
+- The judge gets one or two dry interjections.
+- Playful, never mean or offensive. Nobody announces the final ruling; the judge does that after.
+- Every line under 110 characters.
 
 Reply with JSON only, no other text:
-{"lines":[{"who":"<judge id>","say":"<line>","to":"<judge id or null>","emotion":"${EMOTIONS.join('|')}","action":"${ACTIONS.join('|')}","crowd":"${CROWD.join('|')}"}]}`;
+{"lines":[{"who":"<lawyer id or judge>","say":"<line>","to":"<lawyer id or null>","emotion":"${EMOTIONS.join('|')}","action":"${ACTIONS.join('|')}","crowd":"${CROWD.join('|')}"}]}`;
 }
 
 /**
@@ -63,9 +67,10 @@ export function parseScript(text, models) {
   }
 
   // writers sometimes say "gpt-5.6-terra" instead of "openai/gpt-5.6-terra"
-  const resolve = (name) => {
+  const resolve = (name, allowJudge = false) => {
     if (!name || typeof name !== 'string') return null;
     const n = name.toLowerCase().trim();
+    if (allowJudge && ['judge', 'chair', 'chairman', 'the judge'].includes(n)) return 'chair';
     return (
       models.find((m) => m.toLowerCase() === n) ||
       models.find((m) => m.toLowerCase().endsWith('/' + n)) ||
@@ -79,7 +84,7 @@ export function parseScript(text, models) {
 
   return (Array.isArray(data.lines) ? data.lines : [])
     .map((line) => {
-      const who = resolve(line?.who);
+      const who = resolve(line?.who, true);
       let say = typeof line?.say === 'string' ? line.say.replace(/\s+/g, ' ').trim() : '';
       if (!who || !say) return null;
       if (say.length > MAX_LINE) say = say.slice(0, MAX_LINE - 3).trimEnd() + '...';

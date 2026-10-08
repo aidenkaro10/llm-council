@@ -8,6 +8,7 @@ import ShowOverlay from './components/ShowOverlay';
 import SoundNudge from './components/SoundNudge';
 import useShow from './scene/useShow';
 import { setSoundEnabled } from './scene/sound';
+import { unlockVoice, stopVoice } from './scene/voice';
 import * as storage from './lib/storage';
 import { listModels } from './lib/openrouter';
 import { runCouncil, generateTitle } from './lib/council';
@@ -132,8 +133,10 @@ export default function App() {
 
   const toggleSound = useCallback((on) => {
     setSoundOn(on);
-    // browsers only allow audio to start from a click, which this is
+    // browsers only allow audio and speech to start from a click, which this is
     setSoundEnabled(on);
+    if (on) unlockVoice();
+    else stopVoice();
     try {
       localStorage.setItem('llmcouncil.sound', on ? 'on' : 'off');
     } catch {
@@ -170,7 +173,10 @@ export default function App() {
 
   useEffect(() => {
     if (!soundOn) return;
-    const arm = () => setSoundEnabled(true);
+    const arm = () => {
+      setSoundEnabled(true);
+      unlockVoice();
+    };
     window.addEventListener('pointerdown', arm, { once: true });
     window.addEventListener('keydown', arm, { once: true });
     return () => {
@@ -353,6 +359,8 @@ export default function App() {
     const isFirstMessage = current.messages.length === 0;
 
     setIsLoading(true);
+    // the send click counts as permission for the cast to speak later
+    if (soundOn) unlockVoice();
 
     if (!soundOn) {
       try {
@@ -446,8 +454,6 @@ export default function App() {
           chairman={scene.chairman}
           phase={scene.phase}
           show={show}
-          question={scene.question}
-          labels={scene.labels}
           focus={focus}
           onFocus={setFocus}
           offset={offset}

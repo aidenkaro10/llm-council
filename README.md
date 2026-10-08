@@ -18,26 +18,30 @@ other blind, and you get one short verdict.
    play favourites.
 3. A chairman writes one answer from all of it.
 
-While they deliberate, it's a show: a courtroom comedy with a cast.
+While they deliberate, it's a show: a courtroom comedy, played straight.
 
-Every model plays a character based on its public reputation. GPT is the
-Overachiever with seven bullet points, Claude the Overthinker who disagrees
-respectfully in advance, Gemini the Eager One who already Googled it, Grok the
-Wildcard who thinks it's all rigged.
+The chairman is the judge, up at the high bench with the only gavel. The other
+models are lawyers in suits at two counsel tables, each playing a character
+based on its public reputation. GPT is the Overachiever with a brief that is
+not brief, Claude the Overthinker who disagrees respectfully in advance, Gemini
+the Eager One who already looked it up, Grok the Wildcard who disagrees before
+hearing anyone.
 
-1. **Order in the court.** The chairman bangs the gavel and your question comes
-   up as the case. Each judge makes an entrance.
-2. **The argument.** Once the judges have answered, a small fast model writes a
-   short comedy scene out of their real disagreement, and the cast performs it:
-   pointing gavels, facepalms, OBJECTION!, LED faces that go smug, shocked or
-   furious, and the camera cutting to whoever just got roasted.
-3. **The votes are in.** A game-show scoreboard shows the blind-review ranking.
-   The winner gloats, the loser sulks.
-4. **The verdict.** The chairman writes it, then one last gavel.
+1. **Order in the court.** The judge calls the case (your question). Counsel
+   stand one at a time for opening statements.
+2. **The argument.** Once the answers are in, a small fast model writes a short
+   scene out of their real disagreement, the way people actually talk in court:
+   "Your Honor", objections, rebuttals, the judge cutting in. Whoever speaks
+   stands up, and the camera cuts like court TV, with reaction shots of whoever
+   just got called out.
+3. **The vote.** The judge has heard enough. The blind-review ranking comes up,
+   the winner is gracious, the loser less so.
+4. **The ruling.** The judge reads the verdict out and bangs the gavel.
 
-A studio audience of odd little robots (a toaster, a robo-vac in a top hat, a
-TV-head) laughs, gasps and applauds along. Sound is off until you hit the
-speaker button. It's all generated in the browser, no audio files.
+Lines show as TV captions. Turn sound on (the speaker button) and the cast
+speaks them out loud in different voices, with the gallery reacting quietly.
+Voices come from your own device's speech engine, so they're free and sound
+best on a Mac or with Chrome's built-in voices. No audio files.
 
 Then you see the verdict. Everything else, every judge's answer and every
 review, is one click away under **How they got there**.
@@ -46,7 +50,7 @@ review, is one click away under **How they got there**.
 
 Your key stays in your browser and goes straight to openrouter.ai. There is no
 server. A question with four flagship models costs about 7 cents, plus about a
-third of a cent for the comedy script; the app shows
+third of a cent for the courtroom script; the app shows
 an estimate before you send and the real cost after. Swap in cheaper judges in
 Settings to spend less.
 
@@ -66,8 +70,8 @@ your repo name.
 
 React and Vite, with the courtroom in three.js through React Three Fiber. The
 mechs and the set are built from code, not model files, and the 3D loads
-separately so the app is usable before it arrives. Sound is synthesised with
-the Web Audio API. Animation runs in the render loop with damping rather than
+separately so the app is usable before it arrives. Sound effects are synthesised
+with the Web Audio API and the voices use the browser's speech synthesis. Animation runs in the render loop with damping rather than
 through React, quality steps down automatically on slow devices, and it
 respects reduced-motion settings.
 

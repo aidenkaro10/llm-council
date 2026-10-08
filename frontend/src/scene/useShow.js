@@ -1,31 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { sfx } from './sound';
+import { sfx, soundEnabled } from './sound';
+import { speak, stopVoice, voiceSupported } from './voice';
 import { personaFor, CHAIR_LINES, pick } from '../lib/personas';
 
 /**
- * The director. Runs the episode on top of the council's real progress:
+ * The director. Runs the proceedings on top of the council's real progress:
  *
- *   1. Order in the court: the chairman opens, the case comes up.
- *   2. Entrances: each judge introduces themselves, in character.
- *   3. While they work: ad-libs. Once the script arrives (written from the
- *      real debate), the cast performs it line by line, with reactions,
- *      pointing, slams and the studio audience.
- *   4. The votes are in: the winner gloats, the loser sulks.
- *   5. The final gavel.
+ *   1. The judge opens court; the case comes up.
+ *   2. Opening statements: each lawyer stands and introduces themselves.
+ *   3. The argument: once the script arrives (written from the real debate),
+ *      counsel perform it, line by line, each waiting for the last to finish.
+ *      Until then, and between lines, the room breathes: short asides, pauses.
+ *   4. The judge cuts it off, the votes come in, the winner and loser react.
+ *   5. The ruling: the judge reads it out and bangs the gavel.
  *
  * Nothing here delays the answer. The show only fills time spent waiting.
  */
 
-// how long after a slam starts the gavel actually hits (matches Mech3D)
-const IMPACT_MS = 290;
-// how long the result sequence holds the floor before the script carries on
-const RESULTS_MS = 7000;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const reducedMotion =
-  typeof window !== 'undefined' &&
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-// when someone gets a line aimed at them, how they react
+// when a lawyer is addressed, how they take it
 const REACTIONS = {
   angry: 'shocked',
   smug: 'annoyed',
@@ -43,76 +37,74 @@ const EMPTY = {
   voice: null,
   reactor: null,
   slams: {},
-  bursts: {},
-  clash: null,
-  shake: null,
   caseCard: null,
   scoreCard: null,
-  flashAt: 0,
   lines: {},
   emotions: {},
   gestures: {},
 };
 
-/** How long a line stays up: long enough to read, never sluggish. */
-const lineLength = (text) => Math.min(5200, Math.max(2100, 1400 + text.length * 44));
+/** How long a line stays up without a voice: long enough to read comfortably. */
+const readingTime = (text) => Math.min(6000, 1400 + text.length * 42);
+
+/** The first sentence of the ruling, for the judge to read out. */
+function firstSentence(text) {
+  const clean = (text || '').replace(/[*_#`>]/g, '').replace(/\s+/g, ' ').trim();
+  const match = clean.match(/^(.{12,170}?[.!?])(\s|$)/);
+  return match ? match[1] : clean.slice(0, 140);
+}
 
 export default function useShow(scene, question, caseKey) {
   const [show, setShow] = useState(EMPTY);
   const latest = useRef(scene);
   latest.current = scene;
   const prevPhase = useRef(scene.phase);
-  const timers = useRef([]);
+  const run = useRef(0); // bumping this cancels whatever is in progress
   const queue = useRef([]);
   const scripted = useRef(false);
-  const loopOn = useRef(false);
-  const holdUntil = useRef(0);
+  const looping = useRef(false);
+  const results = useRef(false);
+  const talking = useRef(null); // resolves when whoever is speaking finishes
 
-  const later = (ms, fn) => timers.current.push(setTimeout(fn, ms));
-  const clearAll = () => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
+  const working = () => ['opinions', 'review'].includes(latest.current.phase) && !results.current;
+  const alive = (token) => token === run.current;
+
+  const stop = () => {
+    run.current += 1;
+    talking.current = null;
     queue.current = [];
     scripted.current = false;
-    loopOn.current = false;
-    holdUntil.current = 0;
+    looping.current = false;
+    results.current = false;
+    stopVoice();
   };
 
-  const voiceIndex = (actor) => Math.max(0, latest.current.council.findIndex((j) => j.model === actor));
-  const working = () => ['opinions', 'review', 'verdict'].includes(latest.current.phase);
+  // --- moments -------------------------------------------------------------
 
-  // --- the actors' moves -----------------------------------------------------
-
-  /** A gavel slam: animation now, sound and shake when it actually lands. */
-  const slam = (who, { big = false } = {}) => {
-    const now = performance.now();
-    setShow((s) => ({ ...s, slams: { ...s.slams, [who]: now } }));
-    later(IMPACT_MS, () => {
-      sfx('gavel', big);
-      if (!reducedMotion) {
-        setShow((s) => ({ ...s, shake: { at: performance.now(), strength: big ? 0.22 : 0.05 } }));
-      }
-    });
+  const gavel = (who = 'chair') => {
+    setShow((s) => ({ ...s, slams: { ...s.slams, [who]: performance.now() } }));
+    setTimeout(() => sfx('gavel', false), 290);
   };
 
-  const outburst = (who, word) => {
+  const cheer = (type, ...args) => {
+    setShow((s) => ({ ...s, crowd: { type, at: performance.now() } }));
+    sfx(type, ...args);
+  };
+
+  const round = (kicker, title) => {
     const at = performance.now();
-    setShow((s) => ({ ...s, bursts: { ...s.bursts, [who]: { word, at } } }));
-    sfx('objection');
-    later(1300, () =>
-      setShow((s) => {
-        if (s.bursts[who]?.at !== at) return s;
-        const bursts = { ...s.bursts };
-        delete bursts[who];
-        return { ...s, bursts };
-      })
-    );
+    setShow((s) => ({ ...s, round: { kicker, title, at } }));
+    setTimeout(() => setShow((s) => (s.round?.at === at ? { ...s, round: null } : s)), 2600);
   };
 
-  /** Someone says a line: bubble, face, body, voice. Returns how long it lasts. */
-  const say = (who, text, { emotion, gesture, target } = {}) => {
+  /**
+   * Someone speaks a line. Captions show it, the voice says it if sound is
+   * on, and this resolves when they've finished. Returns false if the show
+   * moved on in the meantime.
+   */
+  const line = async (token, who, text, { emotion, gesture, target } = {}) => {
+    if (!alive(token)) return false;
     const at = performance.now();
-    const ms = lineLength(text);
     setShow((s) => ({
       ...s,
       voice: who,
@@ -124,19 +116,21 @@ export default function useShow(scene, question, caseKey) {
           ? { ...s.gestures, [who]: { type: gesture, at, target: target || null } }
           : s.gestures,
     }));
-    sfx('chatter', voiceIndex(who), Math.min(ms / 1000 - 0.4, 3.2), who === 'chair');
-    later(ms, () =>
-      setShow((s) => {
-        if (s.lines[who]?.at !== at) return s;
-        const lines = { ...s.lines };
-        delete lines[who];
-        return { ...s, lines };
-      })
-    );
-    return ms;
+
+    const voiced = soundEnabled() && voiceSupported();
+    const key = who === 'chair' ? 'chair' : who.split('/')[0];
+    // give the eye a moment even for very short spoken lines
+    const done = voiced ? Promise.all([speak(text, key), wait(900)]) : wait(readingTime(text));
+    talking.current = done;
+    await done;
+
+    if (!alive(token)) return false;
+    setShow((s) => (s.lines[who]?.at === at ? { ...s, lines: {}, voice: null } : s));
+    await wait(320);
+    return alive(token);
   };
 
-  /** The one being talked about reacts, and the camera cuts to them. */
+  /** The one being addressed reacts, and the camera cuts to them. */
   const react = (who, emotion, gesture) => {
     const at = performance.now();
     setShow((s) => ({
@@ -147,102 +141,52 @@ export default function useShow(scene, question, caseKey) {
     }));
   };
 
-  /** The studio audience reacts: sound and the robots in the gallery, together. */
-  const cheer = (type, ...args) => {
-    setShow((s) => ({ ...s, crowd: { type, at: performance.now() } }));
-    sfx(type, ...args);
-  };
-
-  /** A game-show round banner over the stage. */
-  const round = (kicker, title) => {
-    const at = performance.now();
-    setShow((s) => ({ ...s, round: { kicker, title, at } }));
-    later(2600, () => setShow((s) => (s.round?.at === at ? { ...s, round: null } : s)));
-  };
-
-  const beam = (from, to) => {
-    setShow((s) => ({ ...s, clash: { from, to, at: performance.now() } }));
-    later(90, () => sfx('zap'));
-  };
-
-  // --- performing the script --------------------------------------------------
-
-  const perform = (line) => {
-    const gesture = line.action === 'objection' ? 'point' : line.action;
-    const ms = say(line.who, line.say, { emotion: line.emotion, gesture, target: line.to });
-
-    if (line.action === 'slam') slam(line.who);
-    if (line.action === 'objection') outburst(line.who, 'OBJECTION!');
-    if (line.to && ['point', 'objection', 'slam'].includes(line.action)) beam(line.who, line.to);
-    else setShow((s) => ({ ...s, clash: null }));
-
-    if (line.to) {
-      later(ms * 0.55, () =>
-        react(line.to, REACTIONS[line.emotion] || 'annoyed', pick(['facepalm', 'shrug', 'none']))
-      );
+  const perform = async (token, l) => {
+    const gesture = l.action === 'objection' ? 'point' : l.action;
+    if (l.action === 'slam') setTimeout(() => gavel(l.who), 150);
+    if (l.to) {
+      // a beat into the line, the target reacts
+      const delay = soundEnabled() ? 900 + l.say.length * 25 : readingTime(l.say) * 0.55;
+      setTimeout(() => alive(token) && react(l.to, REACTIONS[l.emotion] || 'annoyed', pick(['facepalm', 'shrug', 'none'])), delay);
     }
-    if (line.crowd && line.crowd !== 'none') later(ms * 0.8, () => cheer(line.crowd));
-    return ms;
+    const ok = await line(token, l.who, l.say, { emotion: l.emotion, gesture, target: l.to });
+    if (ok && l.crowd && l.crowd !== 'none') cheer(l.crowd);
+    return ok;
   };
 
-  /** Fill the room until the verdict: the script when we have it, ad-libs otherwise. */
-  const loop = () => {
-    if (!loopOn.current || !working()) {
-      loopOn.current = false;
-      return;
-    }
-    const wait = holdUntil.current - performance.now();
-    if (wait > 0) {
-      later(wait, loop);
-      return;
-    }
-
-    const phase = latest.current.phase;
-    let ms;
-
-    if (queue.current.length) {
-      ms = perform(queue.current.shift());
-    } else if (phase === 'opinions' || phase === 'review') {
-      // nothing written yet, or it's all been said: ad-lib
+  /** Fill the room until the judge rules: the script, or the odd aside. */
+  const loop = async (token) => {
+    if (looping.current) return;
+    looping.current = true;
+    while (alive(token) && working()) {
+      if (queue.current.length) {
+        if (!(await perform(token, queue.current.shift()))) break;
+        continue;
+      }
+      // nothing written yet: a short aside, then a pause, like a real room
       const cast = latest.current.council.filter((j) => j.state !== 'failed');
       if (cast.length) {
         const who = pick(cast);
         const others = cast.filter((j) => j.model !== who.model);
-        const target = others.length && Math.random() < 0.4 ? pick(others).model : null;
-        ms = say(who.model, pick(personaFor(who.model).adlibs), {
-          emotion: pick(['smug', 'annoyed', 'neutral', 'happy']),
-          gesture: target ? 'point' : pick(['shrug', 'none', 'none']),
+        const target = others.length && Math.random() < 0.35 ? pick(others).model : null;
+        if (!(await line(token, who.model, pick(personaFor(who.model).adlibs), {
+          emotion: pick(['smug', 'annoyed', 'neutral']),
+          gesture: target ? 'point' : 'none',
           target,
-        });
-        // tempers flare in cross-examination
-        if (phase === 'review' && Math.random() < 0.45) {
-          later(ms * 0.4, () =>
-            Math.random() < 0.5 ? outburst(pick(cast).model, pick(['OBJECTION!', 'HEARSAY!', 'OVERRULED!'])) : slam(pick(cast).model)
-          );
-        }
+        }))) break;
       }
-    } else {
-      // the chairman has the floor; the cast waits
-      loopOn.current = false;
-      return;
+      await wait(1400 + Math.random() * 1600);
     }
-
-    later((ms || 2400) + 380, loop);
+    if (alive(token)) looping.current = false;
   };
 
-  const startLoop = (delay = 0) => {
-    if (loopOn.current) return;
-    loopOn.current = true;
-    later(delay, loop);
-  };
+  // --- the proceedings ---------------------------------------------------------
 
-  // --- the big set pieces, on phase changes -----------------------------------
-
-  // A different conversation opened: drop whatever was on stage. Declared first
-  // so it runs before the phase effect; asking from the empty screen opens a
-  // conversation and calls the case in the same moment, and the case must win.
+  // A different conversation opened: clear the stage. Declared first so it runs
+  // before the phase effect; asking from the empty screen does both at once,
+  // and the new case must win.
   useEffect(() => {
-    clearAll();
+    stop();
     setShow(EMPTY);
   }, [caseKey]);
 
@@ -253,108 +197,99 @@ export default function useShow(scene, question, caseKey) {
     if (from === to) return;
 
     if (to === 'opinions') {
-      // a new case: order in the court, then the cast makes its entrances
-      clearAll();
+      stop();
+      const token = run.current;
       setShow({ ...EMPTY, caseCard: { question, at: performance.now() } });
-      [0, 380, 760].forEach((ms) => later(ms, () => slam('chair')));
-      later(950, () => say('chair', pick(CHAIR_LINES.open), { emotion: 'neutral' }));
-      later(2700, () => setShow((s) => ({ ...s, caseCard: null })));
-      later(2800, () => round('ROUND 1', 'Opening arguments'));
-
-      const cast = latest.current.council.filter((j) => j.state !== 'failed');
-      cast.forEach((judge, i) => {
-        later(3000 + i * 2900, () => {
-          if (latest.current.phase !== 'opinions' && latest.current.phase !== 'review') return;
-          say(judge.model, pick(personaFor(judge.model).intros), {
-            emotion: pick(['happy', 'smug']),
-            gesture: 'wave',
-          });
-          if (Math.random() < 0.35) later(1600, () => cheer('laugh'));
-        });
-      });
-      // the script waits until everyone has made their entrance
-      holdUntil.current = performance.now() + 3000 + cast.length * 2900 + 300;
-      startLoop(3000 + cast.length * 2900 + 300);
+      (async () => {
+        for (const ms of [0, 380, 380]) {
+          await wait(ms);
+          if (!alive(token)) return;
+          gavel('chair');
+        }
+        await wait(600);
+        if (!(await line(token, 'chair', pick(CHAIR_LINES.open), { emotion: 'neutral' }))) return;
+        setShow((s) => ({ ...s, caseCard: null }));
+        round('ROUND 1', 'Opening statements');
+        if (!(await line(token, 'chair', pick(CHAIR_LINES.begin), { emotion: 'neutral' }))) return;
+        for (const judge of latest.current.council.filter((j) => j.state !== 'failed')) {
+          if (!working()) return;
+          // the real argument is ready: skip straight to it
+          if (queue.current.length || latest.current.phase !== 'opinions') break;
+          if (!(await line(token, judge.model, pick(personaFor(judge.model).intros), { emotion: pick(['happy', 'smug', 'neutral']) }))) return;
+          if (Math.random() < 0.3) cheer('laugh');
+        }
+        loop(token);
+      })();
     }
 
     if (to === 'review') {
-      round('ROUND 2', 'Cross-examination');
-      later(400, () => cheer('ooh'));
+      round('ROUND 2', 'The argument');
+      setTimeout(() => cheer('ooh'), 400);
     }
 
     if (to === 'verdict' && from === 'review') {
-      // the votes are in: the winner gloats, the loser sulks, the chair takes over
+      // the judge cuts it off; the votes come in; winner and loser react.
+      // Whoever is mid-sentence gets to finish it first (up to a few seconds).
+      const finishing = talking.current;
+      run.current += 1;
+      queue.current = [];
+      looping.current = false;
+      results.current = true;
+      const token = run.current;
       const ranks = scene.rankings || [];
-      holdUntil.current = performance.now() + RESULTS_MS;
-      setShow((s) => ({
-        ...s,
-        voice: null,
-        reactor: null,
-        clash: null,
-        bursts: {},
-        lines: {},
-        round: null,
-        scoreCard: { rankings: ranks, at: performance.now() },
-      }));
-      later(250, () => {
-        sfx('fanfare');
-        cheer('applause', 2.2);
-      });
-      later(4000, () => round('FINAL ROUND', 'The verdict'));
-      if (ranks.length) {
-        const winner = ranks[0].model;
-        later(1000, () =>
-          say(winner, pick(personaFor(winner).victory), { emotion: 'happy', gesture: 'laugh' })
-        );
-      }
-      if (ranks.length > 1) {
-        const loser = ranks[ranks.length - 1].model;
-        later(3600, () => {
-          say(loser, pick(personaFor(loser).defeat), { emotion: 'sad', gesture: 'facepalm' });
-          later(1500, () => cheer('laugh'));
-        });
-      }
-      later(6000, () => {
-        say('chair', pick(CHAIR_LINES.verdict), { emotion: 'neutral' });
-        slam('chair');
-      });
-      later(3800, () => setShow((s) => ({ ...s, scoreCard: null })));
-      startLoop(RESULTS_MS);
+      (async () => {
+        await Promise.race([finishing, wait(3500)]);
+        stopVoice();
+        if (!alive(token)) return;
+        setShow((s) => ({ ...s, voice: null, reactor: null, lines: {}, round: null }));
+        await wait(250);
+        gavel('chair');
+        if (!(await line(token, 'chair', pick(CHAIR_LINES.verdict), { emotion: 'neutral' }))) return;
+        setShow((s) => ({ ...s, scoreCard: { rankings: ranks, at: performance.now() } }));
+        cheer('ooh');
+        setTimeout(() => setShow((s) => ({ ...s, scoreCard: null })), 4200);
+        await wait(1200);
+        if (ranks.length) {
+          const winner = ranks[0].model;
+          if (!(await line(token, winner, pick(personaFor(winner).victory), { emotion: 'happy', gesture: 'laugh' }))) return;
+        }
+        if (ranks.length > 1) {
+          const loser = ranks[ranks.length - 1].model;
+          if (!(await line(token, loser, pick(personaFor(loser).defeat), { emotion: 'sad', gesture: 'facepalm' }))) return;
+          cheer('laugh');
+        }
+        if (alive(token)) round('FINAL ROUND', 'The ruling');
+      })();
     }
 
     if (to === 'done' && from === 'verdict') {
-      // the final gavel
-      loopOn.current = false;
-      queue.current = [];
-      const winner = scene.rankings?.[0]?.model;
-      setShow((s) => ({
-        ...s,
-        voice: null,
-        reactor: null,
-        clash: null,
-        lines: {},
-        flashAt: performance.now() + IMPACT_MS,
-        emotions: winner ? { [winner]: { e: 'happy', at: performance.now() } } : {},
-      }));
-      slam('chair', { big: true });
-      later(IMPACT_MS + 120, () => cheer('applause', 3));
+      // the ruling, read out, and the final gavel
+      stop();
+      const token = run.current;
+      const ruling = firstSentence(latest.current.chairman?.text);
+      (async () => {
+        if (ruling && !(await line(token, 'chair', ruling, { emotion: 'neutral' }))) return;
+        gavel('chair');
+        setTimeout(() => cheer('applause', 3), 300);
+        const winner = latest.current.rankings?.[0]?.model;
+        if (winner) setShow((s) => ({ ...s, emotions: { [winner]: { e: 'happy', at: performance.now() } } }));
+      })();
     }
 
     if (to === 'idle' || (to === 'done' && from !== 'verdict')) {
-      clearAll();
+      stop();
       setShow(EMPTY);
     }
   }, [scene.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The script arrived: queue it, and the cast will perform it next
+  // The script arrived: counsel will perform it next
   useEffect(() => {
     if (!scene.script?.length || scripted.current || !working()) return;
     scripted.current = true;
     queue.current = [...scene.script];
-    startLoop(0);
   }, [scene.script]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => clearAll, []);
+  useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return show;
 }
