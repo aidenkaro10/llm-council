@@ -1,55 +1,55 @@
 import { useEffect, useState } from 'react';
+import './IntroLoader.css';
 
 /**
- * The opening: a counter climbs while the 3D chamber loads, then the curtain
- * lifts and the camera flies in. Shown once per browser session.
+ * The opening: you're standing outside the courtroom's double doors, with a
+ * line of light coming through the gap. Once the 3D room has loaded, the
+ * doors swing open onto it. Shown once per browser session.
  */
 export default function IntroLoader({ ready, onDone }) {
-  const [progress, setProgress] = useState(0);
-  const [leaving, setLeaving] = useState(false);
+  // 'closed' while loading, 'open' while the doors swing, then gone
+  const [stage, setStage] = useState('closed');
+  const [minTimePassed, setMinTimePassed] = useState(false);
 
+  // stay closed for a moment at least, so the doors never just flash past
   useEffect(() => {
-    const started = performance.now();
-    let frame;
+    const t = setTimeout(() => setMinTimePassed(true), 900);
+    return () => clearTimeout(t);
+  }, []);
 
-    const tick = () => {
-      const elapsed = performance.now() - started;
-      // climb quickly to 90, then wait for the scene, with a short minimum so
-      // the intro never flashes past
-      const eased = 90 * (1 - Math.pow(1 - Math.min(elapsed / 1300, 1), 3));
-      const next = ready && elapsed > 1100 ? 100 : eased;
-      setProgress((p) => Math.max(p, next));
-      if (next < 100) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [ready]);
-
+  // the room is ready: open up, then get out of the way
   useEffect(() => {
-    if (progress < 100) return;
-    const lift = setTimeout(() => setLeaving(true), 250);
-    const done = setTimeout(onDone, 1250);
-    return () => {
-      clearTimeout(lift);
-      clearTimeout(done);
-    };
-  }, [progress, onDone]);
+    if (!ready || !minTimePassed) return;
+    setStage('open');
+    const done = setTimeout(onDone, 1900);
+    return () => clearTimeout(done);
+  }, [ready, minTimePassed, onDone]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--background)] transition-opacity duration-1000"
-      style={{ opacity: leaving ? 0 : 1, pointerEvents: leaving ? 'none' : 'auto' }}
-      aria-hidden="true"
-    >
-      <div className="text-[11px] font-medium tracking-[0.5em] text-white/60">LLM COUNCIL</div>
-      <div className="mt-6 font-[family-name:var(--font-display)] text-[clamp(64px,12vw,140px)] leading-none tabular-nums text-white">
-        {String(Math.floor(progress)).padStart(2, '0')}
+    <div className={`intro intro-${stage}`} aria-hidden="true">
+      {/* the light from inside, seen through the gap and then the open doors */}
+      <div className="intro-light" />
+
+      {/* light leaking through the gap between the doors, and under them */}
+      <div className="intro-seam" />
+      <div className="intro-spill" />
+
+      <div className="intro-doors">
+        {['left', 'right'].map((side) => (
+          <div key={side} className={`door door-${side}`}>
+            {/* two raised panels, like a real wooden door */}
+            <div className="door-panel door-panel-top" />
+            <div className="door-panel door-panel-bottom" />
+            {/* the brass push plate by the seam */}
+            <div className="door-plate" />
+          </div>
+        ))}
       </div>
-      <div className="mt-8 h-px w-48 overflow-hidden bg-white/10">
-        <div className="h-full bg-white/70 transition-[width] duration-150" style={{ width: `${progress}%` }} />
-      </div>
-      <div className="mt-4 text-[11px] tracking-[0.35em] text-white/40 transition-colors duration-500" style={{ color: progress >= 100 ? 'oklch(0.85 0.1 85)' : undefined }}>
-        {progress >= 100 ? 'ALL RISE' : 'CONVENING'}
+
+      {/* the brass sign on the doors */}
+      <div className="intro-sign">
+        <span className="intro-sign-small">COURTROOM 1</span>
+        <span className="intro-sign-name">LLM Council</span>
       </div>
     </div>
   );

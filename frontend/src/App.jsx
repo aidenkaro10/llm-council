@@ -189,7 +189,7 @@ export default function App() {
   useEffect(() => setFocus(null), [scene.phase]);
 
   // Frame the council in the space the panel leaves free
-  const offset = wide ? { x: (440 + 16) / 2, y: 0 } : { x: 0, y: Math.round(h * 0.27) };
+  const offset = wide ? { x: (440 + 16) / 2, y: 0 } : { x: 0, y: Math.round(h * 0.23) };
   // the space the chamber actually gets once the panel is in place
   const freeAspect = wide ? (w - 456) / h : w / h;
   const freeHeight = wide ? 1 : 0.4;

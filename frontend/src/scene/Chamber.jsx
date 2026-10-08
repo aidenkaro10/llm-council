@@ -61,7 +61,7 @@ function shotFor({ key, seats, fit }) {
   return { pos: [x + side * 0.9 * tight, 2.45, z - 3.7 * tight], look: [x, 1.95, z] };
 }
 
-function CameraRig({ shotKey, seats, fit, freeHeight, intro, calm, onFocusPoint }) {
+function CameraRig({ shotKey, seats, fit, lens, intro, calm, onFocusPoint }) {
   const { camera } = useThree();
   const pos = useRef(new THREE.Vector3());
   const look = useRef(new THREE.Vector3());
@@ -89,16 +89,14 @@ function CameraRig({ shotKey, seats, fit, freeHeight, intro, calm, onFocusPoint 
       const l = new THREE.Vector3(...shot.look);
       goal.current.copy(p).lerp(l, calm ? 0 : 0.07);
       onFocusPoint?.(shot.look);
+    }
 
-      // On a phone the court only gets the top strip of the screen, so close
-      // shots widen the lens instead of backing the camera into the bench
-      const close = shotKey === 'judge' || shotKey.includes(':');
-      const zoom = close ? Math.max(1, 0.85 / freeHeight) : 1;
-      const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * zoom));
-      if (Math.abs(camera.fov - fov) > 0.01) {
-        camera.fov = fov;
-        camera.updateProjectionMatrix();
-      }
+    // On a narrow screen (a phone held upright) a normal lens would only see
+    // a sliver of the room, so widen it instead of backing the camera out
+    const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * lens));
+    if (Math.abs(camera.fov - fov) > 0.01) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
     }
 
     const shot = shotFor({ key: shotKey, seats, fit });
@@ -146,12 +144,14 @@ export default function Chamber({
   const [focusPoint, setFocusPoint] = useState([0, 2, -2]);
 
   // how much further back the wide shots must sit so the room fits the space
+  // how much wider than normal the lens is (1 on a desktop, about 2 on a phone)
+  const lens = Math.max(1, 1 / Math.max(freeAspect, 0.3), 0.85 / freeHeight);
   const fit = useMemo(() => {
-    const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+    const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * lens;
     const neededWidth = 12;
     const neededHeight = 6.4;
     return Math.max(1, neededWidth / (2 * tan * Math.max(freeAspect, 0.3)) / 14, neededHeight / (2 * tan * freeHeight) / 14);
-  }, [freeAspect, freeHeight]);
+  }, [freeAspect, freeHeight, lens]);
 
   const indexOf = (model) => council.findIndex((c) => c.model === model);
   const voiceIndex = s.voice && s.voice !== 'chair' ? indexOf(s.voice) : -1;
@@ -214,7 +214,7 @@ export default function Chamber({
       <fog attach="fog" args={['#1a120c', 22, 60]} />
 
       <ViewOffset x={offset.x} y={offset.y} />
-      <CameraRig shotKey={shotKey} seats={seats} fit={fit} freeHeight={freeHeight} intro={intro} calm={calm} onFocusPoint={setFocusPoint} />
+      <CameraRig shotKey={shotKey} seats={seats} fit={fit} lens={lens} intro={intro} calm={calm} onFocusPoint={setFocusPoint} />
 
       {/* daylight through the tall windows on the left, warm and soft */}
       <hemisphereLight args={['#ffe9cc', '#3a2414', 0.55]} />

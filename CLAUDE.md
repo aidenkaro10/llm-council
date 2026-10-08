@@ -47,7 +47,7 @@ frontend/
 ## The look
 
 Modelled on immersive award-style sites: one full-screen WebGL stage with the
-UI as frosted glass over it, an intro counter on first visit per session, and
+UI as frosted glass over it, courtroom doors that swing open on the first visit per session, and
 the camera moving with the story. Spectacle lives in the deliberation, which
 is dead waiting time anyway. The verdict must stay instant to read.
 
